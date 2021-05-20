@@ -1,6 +1,6 @@
 requests~=2.25.1
 discord~=1.0.1
 Pillow
-battlefy-toolkit-slate
-SlappPy-Slate
+battlefy-toolkit-slate>=1.1.0
+SlappPy-Slate>=1.1.1
 python-dotenv

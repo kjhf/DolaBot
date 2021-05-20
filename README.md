@@ -22,3 +22,6 @@ SLAPP_CONSOLE_PATH=".../SplatTagConsole.dll"
 # Path to the Slapp App Data folder
 SLAPP_DATA_FOLDER=".../SplatTag"  
 ```
+
+You must also set the relevant env values for [SlappPy](https://github.com/kjhf/SlappPy)
+
