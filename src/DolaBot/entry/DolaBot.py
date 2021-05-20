@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import sys
 
 import discord
@@ -7,14 +8,13 @@ from discord.ext import commands
 from discord.ext.commands import Bot, CommandNotFound, UserInputError, MissingRequiredArgument, Context
 from slapp_py.slapp_runner.slapipes import initialise_slapp
 
-from PyBot.cogs.bot_util_commands import BotUtilCommands
-from PyBot.cogs.meme_commands import MemeCommands
-from PyBot.cogs.sendou_commands import SendouCommands
-from PyBot.cogs.server_commands import ServerCommands
-from PyBot.cogs.slapp_commands import SlappCommands
-from PyBot.cogs.splatoon_commands import SplatoonCommands
-from PyBot.constants.bot_constants import COMMAND_PREFIX
-from tokens import OWNER_ID, BOT_TOKEN
+from DolaBot.cogs.bot_util_commands import BotUtilCommands
+from DolaBot.cogs.meme_commands import MemeCommands
+from DolaBot.cogs.sendou_commands import SendouCommands
+from DolaBot.cogs.server_commands import ServerCommands
+from DolaBot.cogs.slapp_commands import SlappCommands
+from DolaBot.cogs.splatoon_commands import SplatoonCommands
+from DolaBot.constants.bot_constants import COMMAND_PREFIX
 
 
 class DolaBot(Bot):
@@ -27,7 +27,7 @@ class DolaBot(Bot):
         super().__init__(
             command_prefix=COMMAND_PREFIX,
             intents=intents,
-            owner_id=OWNER_ID
+            owner_id=os.getenv("OWNER_ID")
         )
 
         # Load Cogs
@@ -79,6 +79,6 @@ class DolaBot(Bot):
         loop.run_until_complete(
             asyncio.gather(
                 initialise_slapp(SlappCommands.receive_slapp_response),
-                self.start(BOT_TOKEN)
+                self.start(os.getenv("BOT_TOKEN"))
             )
         )

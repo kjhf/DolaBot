@@ -1,9 +1,10 @@
 """Bot Utility commands cog."""
+import os
+
 from discord.ext import commands
 from discord.ext.commands import Context
 
-from PyBot.constants.bot_constants import COMMAND_PREFIX
-from tokens import CLIENT_ID
+from DolaBot.constants.bot_constants import COMMAND_PREFIX
 
 
 class BotUtilCommands(commands.Cog):
@@ -30,4 +31,4 @@ class BotUtilCommands(commands.Cog):
         help=f'{COMMAND_PREFIX}invite',
         pass_ctx=True)
     async def invite(self, ctx: Context):
-        await ctx.send(f"https://discordapp.com/oauth2/authorize?client_id={CLIENT_ID}&scope=bot")
+        await ctx.send(f"https://discordapp.com/oauth2/authorize?client_id={os.getenv('CLIENT_ID')}&scope=bot")

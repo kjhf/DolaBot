@@ -11,8 +11,8 @@ import requests
 from discord.ext import commands
 from discord.ext.commands import Context
 
-from PyBot.constants.bot_constants import COMMAND_PREFIX
-from PyBot.helpers.weapons import try_find_weapon
+from DolaBot.constants.bot_constants import COMMAND_PREFIX
+from DolaBot.helpers.weapons import try_find_weapon
 
 
 class SendouCommands(commands.Cog):
@@ -90,7 +90,7 @@ class SendouCommands(commands.Cog):
 
 def ability_to_emoji(ability: str) -> str:
     """Translate the ability to an emoji, otherwise return the specified ability string if not found."""
-    from PyBot.constants.emojis import ABILITY_DOUBLER, BOMB_DEFENSE_UP_DX, COMEBACK, DROP_ROLLER, \
+    from DolaBot.constants.emojis import ABILITY_DOUBLER, BOMB_DEFENSE_UP_DX, COMEBACK, DROP_ROLLER, \
         HAUNT, INK_RECOVERY_UP, INK_RESISTANCE_UP, INK_SAVER_MAIN, INK_SAVER_SUB, \
         LAST_DITCH_EFFORT, MAIN_POWER_UP, NINJA_SQUID, OBJECT_SHREDDER, \
         OPENING_GAMBIT, QUICK_RESPAWN, QUICK_SUPER_JUMP, RESPAWN_PUNISHER, \

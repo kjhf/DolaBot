@@ -6,7 +6,7 @@ You have been warned :)
 """
 import random
 
-from PyBot.helpers import weapons
+from DolaBot.helpers import weapons
 
 
 def get_random_footer_phrase() -> str:

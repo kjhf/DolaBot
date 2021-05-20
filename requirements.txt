@@ -3,3 +3,4 @@ discord~=1.0.1
 Pillow
 battlefy-toolkit-slate
 SlappPy-Slate
+python-dotenv

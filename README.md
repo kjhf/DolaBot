@@ -7,23 +7,18 @@ Import prefix is `DolaBot`.
 ## Requirements
 - Python 3.9+
 
-## Distribution
-The following commands should be entered into the venv console:
+## Bot Setup 
+* Create a `.env` in the repository root with the following values:
 
-Windows:
-
-    rmdir /S build
-    rmdir /S dist
-    py -m pip install --upgrade build
-    py -m build
-    py -m pip install --upgrade twine
-    py -m twine upload dist/*
-
-Linux:
-
-    rm -r build
-    rm -r dist
-    python3 -m pip install --upgrade build
-    python3 -m build
-    python3 -m pip install --upgrade twine
-    python3 -m twine upload dist/*
+```py
+# This is the bot's Discord token from the Developer API page.
+BOT_TOKEN="xxxx.xxxx.xxxx"
+# This is the bot's Discord Id.
+CLIENT_ID=123456789
+# This is your Discord Id.
+OWNER_ID=123456789
+# Path to SplatTagConsole for Slapp things
+SLAPP_CONSOLE_PATH=".../SplatTagConsole.dll"
+# Path to the Slapp App Data folder
+SLAPP_DATA_FOLDER=".../SplatTag"  
+```

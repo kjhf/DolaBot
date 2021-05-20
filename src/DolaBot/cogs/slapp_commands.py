@@ -18,11 +18,11 @@ from slapp_py.misc.download_from_battlefy_result import download_from_battlefy
 from slapp_py.slapp_runner.slapipes import query_slapp, slapp_describe, MAX_RESULTS
 from slapp_py.slapp_runner.slapp_response_object import SlappResponseObject
 
-from PyBot.constants import emojis
-from PyBot.constants.bot_constants import COMMAND_PREFIX
-from PyBot.constants.emojis import CROWN, TROPHY
-from PyBot.constants.footer_phrases import get_random_footer_phrase
-from PyBot.helpers.embed_helper import to_embed
+from DolaBot.constants import emojis
+from DolaBot.constants.bot_constants import COMMAND_PREFIX
+from DolaBot.constants.emojis import CROWN, TROPHY
+from DolaBot.constants.footer_phrases import get_random_footer_phrase
+from DolaBot.helpers.embed_helper import to_embed
 from slapp_py.helpers.str_helper import join, truncate, escape_characters
 
 from operator import itemgetter

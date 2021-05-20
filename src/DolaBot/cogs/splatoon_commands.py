@@ -2,10 +2,10 @@
 from discord.ext import commands
 from discord.ext.commands import Context
 
-from PyBot.constants.bot_constants import COMMAND_PREFIX
-from PyBot.helpers.weapons import get_random_weapon
-from PyBot.translators.GameModeTranslator import GameModeTranslator
-from PyBot.translators.StageTranslator import StageTranslator
+from DolaBot.constants.bot_constants import COMMAND_PREFIX
+from DolaBot.helpers.weapons import get_random_weapon
+from DolaBot.translators.GameModeTranslator import GameModeTranslator
+from DolaBot.translators.StageTranslator import StageTranslator
 
 
 class SplatoonCommands(commands.Cog):

@@ -5,7 +5,7 @@ from discord import Role, Guild
 from discord.ext import commands
 from discord.ext.commands import Context
 
-from PyBot.constants.bot_constants import COMMAND_PREFIX
+from DolaBot.constants.bot_constants import COMMAND_PREFIX
 
 
 class ServerCommands(commands.Cog):
