@@ -2,6 +2,7 @@
 Notes.md
 .env
 *.bat
+bin/
 
 # Editors
 .vscode/

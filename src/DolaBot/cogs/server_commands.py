@@ -1,5 +1,5 @@
 """Server-affecting admin/mod commands cog."""
-from typing import Optional, Union
+from typing import Optional
 
 from discord import Role, Guild, Member
 from discord.ext import commands
@@ -66,17 +66,15 @@ class ServerCommands(commands.Cog):
             await ctx.guild.fetch_roles()
             ctx.guild.fetch_members(limit=None)
 
-            print(f"has_role: {ctx=} {role=} {user=}")
-
             if not role:
                 role = "everyone"
 
-            role = role.replace('@', '')
+            role = role.lstrip('@')
 
             if not user:
                 user = ctx.author
 
-            roles = [f"{r.__str__().replace('@', '')}" for r in user.roles]
+            roles = [f"{r.__str__().lstrip('@')}" for r in user.roles]
             has_role = role.__str__() in roles
 
             await ctx.send(f"{user.display_name} has {role}!" if has_role else f"{user.display_name} does not have {role}!")
