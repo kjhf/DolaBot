@@ -1,1 +1,1 @@
-COMMAND_PREFIX = '~'
+COMMAND_PREFIX = '~'  # command symbol

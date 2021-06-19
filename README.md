@@ -32,10 +32,17 @@ You must also set the relevant env values for [SlappPy](https://github.com/kjhf/
   
 THEN
 * `docker build --tag="slate.azurecr.io/dola:latest" -f Dockerfile .`
+
+### Test or run with 
 * `docker run -t -d slate.azurecr.io/dola`
 
+### Update Azure Image with
+After the build step,
+* `az login`
+* `az acr login --name slate`
+* `docker push slate.azurecr.io/dola:latest` 
 
-### Azure Cloud setup
+### Azure Cloud setup from scratch
 ```shell
 ACR_NAME=slate.azurecr.io
 SERVICE_PRINCIPAL_NAME=acr-service-principal
