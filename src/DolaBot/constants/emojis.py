@@ -5,6 +5,9 @@ TWITCH = '<:twitch:810346162023432213>'
 TWITTER = '<:twitter:810346162418614312>'
 TROPHY = '🏆'
 CROWN = '👑'
+RUNNING = '🏃'
+TURTLE = '🐢'
+TICK = '✅'
 
 # Abilities
 ABILITY_DOUBLER = "<:AbilityDoubler:841052609648525382>"

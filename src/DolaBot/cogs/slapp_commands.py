@@ -20,7 +20,7 @@ from slapp_py.slapp_runner.slapp_response_object import SlappResponseObject
 
 from DolaBot.constants import emojis
 from DolaBot.constants.bot_constants import COMMAND_PREFIX
-from DolaBot.constants.emojis import CROWN, TROPHY
+from DolaBot.constants.emojis import CROWN, TROPHY, TICK, TURTLE, RUNNING
 from DolaBot.constants.footer_phrases import get_random_footer_phrase
 from DolaBot.helpers.embed_helper import to_embed
 from slapp_py.helpers.str_helper import join, truncate, escape_characters
@@ -33,6 +33,14 @@ SlappQueueItem = namedtuple('SlappQueueItem', ('Context', 'str'))
 slapp_ctx_queue: Deque[SlappQueueItem] = deque()
 module_autoseed_list: Optional[Dict[str, List[dict]]] = dict()
 module_predict_team_1: Optional[dict] = None
+slapp_started: bool = False
+slapp_caching_finished: bool = False
+
+
+async def add_to_queue(ctx: Optional[Context], description: str):
+    if ctx:
+        await ctx.message.add_reaction(RUNNING if slapp_caching_finished else TURTLE)
+    slapp_ctx_queue.append(SlappQueueItem(ctx, description))
 
 
 class SlappCommands(commands.Cog):
@@ -60,7 +68,7 @@ class SlappCommands(commands.Cog):
             return
 
         verification_message = ''
-        slapp_ctx_queue.append(SlappQueueItem(None, 'autoseed_start'))
+        await add_to_queue(None, 'autoseed_start')
 
         for team in tournament:
             name = team.get('name', None)
@@ -85,11 +93,11 @@ class SlappCommands(commands.Cog):
 
             for player in players:
                 player_slug = player['persistentPlayerID']  # We've already verified this field is good
-                slapp_ctx_queue.append(SlappQueueItem(None, 'autoseed:' + name))
+                await add_to_queue(None, 'autoseed:' + name)
                 await query_slapp(player_slug)
 
         # Finish off the autoseed list
-        slapp_ctx_queue.append(SlappQueueItem(ctx, 'autoseed_end'))
+        await add_to_queue(ctx, 'autoseed_end')
 
         if verification_message:
             await ctx.send(verification_message)
@@ -102,6 +110,10 @@ class SlappCommands(commands.Cog):
         help=f'{COMMAND_PREFIX}verify <team_slug>',
         pass_ctx=True)
     async def verify(self, ctx: Context, team_slug_or_confirmation: Optional[str], tourney_id: Optional[str]):
+        if not slapp_started:
+            await ctx.send(f"⏳ Slapp is not running yet.")
+            return
+
         if not tourney_id:
             tourney_id = self.get_latest_ipl()
 
@@ -144,7 +156,7 @@ class SlappCommands(commands.Cog):
                             verification_message += f'The team {name} ({team_id}) has a player with no slug!\n'
                             continue
                         else:
-                            slapp_ctx_queue.append(SlappQueueItem(ctx, 'verify'))
+                            await add_to_queue(ctx, 'verify')
                             await query_slapp(player_slug)
                 else:
                     continue
@@ -160,8 +172,16 @@ class SlappCommands(commands.Cog):
         help=f'{COMMAND_PREFIX}search <mode_to_translate>',
         pass_ctx=True)
     async def slapp(self, ctx: Context, *, query):
-        print('slapp called with mode_to_translate ' + query)
-        slapp_ctx_queue.append(SlappQueueItem(ctx, 'slapp'))
+        if not slapp_started:
+            await ctx.send(f"⏳ Slapp is not running yet.")
+            return
+
+        if len(query) < 3:
+            await ctx.send(f"💡 Your query is small so might take a while. "
+                           f"You can help by specifying `--exactcase` and/or `--clantag` as appropriate.")
+
+        print('slapp called with query ' + query)
+        await add_to_queue(ctx, 'slapp')
         await query_slapp(query)
 
     @commands.command(
@@ -173,7 +193,7 @@ class SlappCommands(commands.Cog):
         pass_ctx=True)
     async def full(self, ctx: Context, slapp_id: str):
         print('full called with mode_to_translate ' + slapp_id)
-        slapp_ctx_queue.append(SlappQueueItem(ctx, 'full'))
+        await add_to_queue(ctx, 'full')
         await slapp_describe(slapp_id)
 
     @commands.command(
@@ -185,9 +205,9 @@ class SlappCommands(commands.Cog):
         pass_ctx=True)
     async def predict(self, ctx: Context, slapp_id_team_1: str, slapp_id_team_2: str):
         print(f'predict called with teams {slapp_id_team_1=} {slapp_id_team_2=}')
-        slapp_ctx_queue.append(SlappQueueItem(ctx, 'predict_1'))
+        await add_to_queue(ctx, 'predict_1')
         await slapp_describe(slapp_id_team_1)
-        slapp_ctx_queue.append(SlappQueueItem(ctx, 'predict_2'))
+        await add_to_queue(ctx, 'predict_2')
         await slapp_describe(slapp_id_team_2)
         # This comes back in the receive_slapp_response -> handle_predict
 
@@ -372,10 +392,23 @@ class SlappCommands(commands.Cog):
 
     @staticmethod
     async def receive_slapp_response(success_message: str, response: dict):
-        if len(slapp_ctx_queue) == 0:
+        global slapp_started, slapp_caching_finished
+
+        if success_message == "Caching task done.":
+            slapp_caching_finished = True
+            print(f"ACK caching done.")
+            return
+
+        if not slapp_started:
+            print(f"Slapp connection established. Discarding first result: {success_message=}, {response=}")
+            slapp_started = True
+        elif len(slapp_ctx_queue) == 0:
             print(f"receive_slapp_response but queue is empty. Discarding result: {success_message=}, {response=}")
         else:
             ctx, description = slapp_ctx_queue.popleft()
+            if ctx:
+                await ctx.message.add_reaction(TICK)
+
             if description.startswith('predict_'):
                 if success_message != "OK":
                     await SlappCommands.send_slapp(
