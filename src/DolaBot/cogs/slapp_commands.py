@@ -1,26 +1,29 @@
 """Slapp commands cog."""
+import io
 import traceback
 from collections import namedtuple, deque
-from typing import Optional, List, Tuple, Dict, Deque
+from typing import Optional, List, Tuple, Dict, Deque, Union
 
 from battlefy_toolkit.downloaders.org_downloader import get_tournament_ids
 from slapp_py.core_classes.builtins import UNKNOWN_PLAYER
+from slapp_py.core_classes.division import Division
 from slapp_py.core_classes.player import Player
 from slapp_py.core_classes.skill import Skill
 from slapp_py.core_classes.team import Team
 
-from discord import Color, Embed
+from discord import Color, Embed, File
 from discord.ext import commands
 from discord.ext.commands import Context
 
 from slapp_py.helpers.sources_helper import attempt_link_source
 from slapp_py.misc.download_from_battlefy_result import download_from_battlefy
+from slapp_py.misc.models.battlefy_team import BattlefyTeam
 from slapp_py.slapp_runner.slapipes import query_slapp, slapp_describe, MAX_RESULTS
 from slapp_py.slapp_runner.slapp_response_object import SlappResponseObject
 
 from DolaBot.constants import emojis
 from DolaBot.constants.bot_constants import COMMAND_PREFIX
-from DolaBot.constants.emojis import CROWN, TROPHY, TICK, TURTLE, RUNNING
+from DolaBot.constants.emojis import CROWN, TROPHY, TICK, TURTLE, RUNNING, LOW_INK
 from DolaBot.constants.footer_phrases import get_random_footer_phrase
 from DolaBot.helpers.embed_helper import to_embed
 from slapp_py.helpers.str_helper import join, truncate, escape_characters
@@ -31,7 +34,8 @@ from uuid import UUID
 
 SlappQueueItem = namedtuple('SlappQueueItem', ('Context', 'str'))
 slapp_ctx_queue: Deque[SlappQueueItem] = deque()
-module_autoseed_list: Optional[Dict[str, List[dict]]] = dict()
+module_autoseed_list: Optional[Dict[str, List[SlappResponseObject]]] = dict()
+module_html_list: Optional[Dict[str, List[SlappResponseObject]]] = dict()
 module_predict_team_1: Optional[dict] = None
 slapp_started: bool = False
 slapp_caching_finished: bool = False
@@ -43,8 +47,181 @@ async def add_to_queue(ctx: Optional[Context], description: str):
     slapp_ctx_queue.append(SlappQueueItem(ctx, description))
 
 
+async def begin_slapp_html(ctx, tournament: List[dict]):
+    verification_message, players_to_queue = SlappCommands.prepare_bulk_slapp(tournament)
+
+    # Do the autoseed list
+    await add_to_queue(None, 'html_start')
+    for pair in players_to_queue:
+        await add_to_queue(None, 'html:' + pair[0])
+        await query_slapp(pair[1])
+    await add_to_queue(ctx, 'html_end')
+
+    if verification_message:
+        await ctx.send(verification_message)
+
+    # Finished in handle_html
+
+
+async def handle_html(ctx: Optional[Context], description: str, response: Optional[dict]):
+    global module_html_list
+
+    if description.startswith("html_start"):
+        module_html_list.clear()
+        return
+    elif not description.startswith("html_end"):
+        team_name = description.rpartition(':')[2]  # take the right side of the colon
+        if module_html_list.get(team_name):
+            module_html_list[team_name].append(SlappResponseObject(response))
+        else:
+            module_html_list[team_name] = [SlappResponseObject(response)]
+        return
+
+    # End, do the thing
+    message = ''
+
+    # Team name, list of players, clout, confidence, emoji str
+    teams_by_clout: List[Tuple[str, Dict[Player, SlappResponseObject], int, int, str]] = []
+
+    if module_html_list:
+        for team_name in module_html_list:
+            team_players = {}
+            team_awards = []
+            for r in module_html_list[team_name]:
+                if r.matched_players_len == 0:
+                    p = Player(names=[r.query or UNKNOWN_PLAYER], sources=r.sources.keys())
+                    pass
+                elif r.matched_players_len > 1:
+                    p = Player(names=[r.query or UNKNOWN_PLAYER], sources=r.sources.keys())
+                    message += f"Too many matches for player {r.query} 😔 " \
+                               f"({r.matched_players_len=})\n"
+                else:
+                    p = r.matched_players[0]
+
+                team_players[p] = r
+                team_awards.append(r.get_first_placements(p))
+
+            player_skills = [player.skill for player in team_players]
+            player_skills.sort(reverse=True)
+            awards = TROPHY * len({award for award_line in team_awards for award in award_line})
+            awards += CROWN * len([player for player in team_players if player.top500])
+            (_, _), (max_clout, max_confidence) = Skill.team_clout(player_skills)
+            teams_by_clout.append(
+                (team_name,
+                 team_players,
+                 max_clout,
+                 max_confidence,
+                 awards)
+            )
+    else:
+        message = "Err... I didn't get any teams back from Slapp."
+
+    if message:
+        await ctx.send(message)
+
+    # Free free to ignore this LOL
+    row_count = 1
+    HTML_BEGIN = f"""<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><link type="text/css" rel="stylesheet" href="resources/sheet.css"><style type="text/css">.ritz .waffle a {{ color: inherit; }}.ritz .waffle .s8{{background-color:#9900ff;text-align:right;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s0{{background-color:#fce5cd;text-align:center;font-weight:bold;color:#000000;font-family:'Arial';font-size:14pt;vertical-align:middle;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s7{{background-color:#25c274;text-align:right;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s12{{background-color:#fbbc04;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s1{{background-color:#4a86e8;text-align:right;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s6{{background-color:#34a853;text-align:left;text-decoration:underline;-webkit-text-decoration-skip:none;text-decoration-skip-ink:none;color:#1155cc;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s2{{background-color:#34a853;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s3{{background-color:#ffffff;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s10{{background-color:#9900ff;text-align:right;color:#000000;font-family:'docs-Roboto',Arial;font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s4{{background-color:#ffffff;text-align:center;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s5{{background-color:#00ff00;text-align:right;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s14{{background-color:#4285f4;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s13{{background-color:#ff6d01;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s9{{background-color:#ea4335;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s11{{background-color:#4a86e8;text-align:right;color:#000000;font-family:'docs-Roboto',Arial;font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}} .tooltip {{ position: relative;  display: inline-block;  border-bottom: 1px dotted black;}} .tooltip .tooltiptext {{visibility: hidden; background-color: black;  color: #fff;  text-align: center;  padding: 5px 0;  border-radius: 6px;  position: absolute;  z-index: 1;}} .tooltip:hover .tooltiptext {{visibility: visible;}}</style></head>\n<body><div class="ritz grid-container" dir="ltr"><table class="waffle" cellspacing="0" cellpadding="0"><thead><tr><th class="row-header freezebar-origin-ltr"></th><th id="810171351C0" style="width:30px;" class="column-headers-background">A</th><th id="810171351C1" style="width:170px;" class="column-headers-background">B</th><th id="810171351C2" style="width:150px;" class="column-headers-background">C</th><th id="810171351C3" style="width:150px;" class="column-headers-background">D</th><th id="810171351C4" style="width:150px;" class="column-headers-background">E</th><th id="810171351C5" style="width:150px;" class="column-headers-background">F</th><th id="810171351C6" style="width:150px;" class="column-headers-background">G</th><th id="810171351C7" style="width:150px;" class="column-headers-background">H</th><th id="810171351C8" style="width:150px;" class="column-headers-background">I</th><th id="810171351C9" style="width:150px;" class="column-headers-background">J</th><th id="810171351C10" style="width:150px;" class="column-headers-background">K</th><th id="810171351C11" style="width:150px;" class="column-headers-background">L</th><th id="810171351C12" style="width:150px;" class="column-headers-background">M</th><th id="810171351C13" style="width:150px;" class="column-headers-background">N</th><th id="810171351C14" style="width:150px;" class="column-headers-background">O</th><th id="810171351C15" style="width:150px;" class="column-headers-background">P</th><th id="810171351C16" style="width:150px;" class="column-headers-background">Q</th><th id="810171351C17" style="width:150px;" class="column-headers-background">R</th><th id="810171351C18" style="width:150px;" class="column-headers-background">S</th><th id="810171351C19" style="width:150px;" class="column-headers-background">T</th><th id="810171351C20" style="width:150px;" class="column-headers-background">U</th><th id="810171351C21" style="width:150px;" class="column-headers-background">V</th><th id="810171351C22" style="width:150px;" class="column-headers-background">W</th><th id="810171351C23" style="width:150px;" class="column-headers-background">X</th><th id="810171351C24" style="width:150px;" class="column-headers-background">Y</th><th id="810171351C25" style="width:150px;" class="column-headers-background">Z</th></tr></thead><tbody><tr style="height: 30px"><th id="810171351R0" style="height: 30px;" class="row-headers-background"><div class="row-header-wrapper" style="line-height: 30px">{row_count}</div></th><td class="s0" dir="ltr">#</td><td class="s0" dir="ltr">Team Name<br></td><td class="s0" dir="ltr">Player 1</td><td class="s0" dir="ltr">Player 2</td><td class="s0" dir="ltr">Player 3</td><td class="s0" dir="ltr">Player 4</td><td class="s0" dir="ltr">Player 5</td><td class="s0" dir="ltr">Player 6</td><td class="s0" dir="ltr">Player 7</td><td class="s0" dir="ltr">Player 8</td><td class="s0" dir="ltr">Last Updated</td><td class="s0" dir="ltr">Removed 1<br></td><td class="s0" dir="ltr">Removed 2<br></td><td class="s0" dir="ltr">Removed 3<br></td><td class="s0" dir="ltr">Removed 4<br></td><td class="s0" dir="ltr">Removed 5<br></td><td class="s0" dir="ltr">Removed 6<br></td><td class="s0" dir="ltr">Removed 7<br></td><td class="s0" dir="ltr">Removed 8<br></td><td class="s0" dir="ltr">Removed 9<br></td><td class="s0" dir="ltr">Removed 10<br></td><td class="s0" dir="ltr">Removed 11<br></td><td class="s0" dir="ltr">Removed 12<br></td><td class="s0" dir="ltr">Removed 13<br></td><td class="s0" dir="ltr">Removed 14<br></td><td class="s0" dir="ltr">Removed 15<br></td></tr>\n"""
+    HTML_END = """</tbody></table></div></body></html>"""
+    STYLE_GOOD = "s2"
+    STYLE_BANNED = "s9"
+    STYLE_NEEDS_CHECKING = "s12"
+    STYLE_EXCEPTION = "s14"
+
+    # Order by clout for the team seed
+    ordered = sorted(teams_by_clout, key=itemgetter(2), reverse=True)
+    output = HTML_BEGIN
+    for tup in teams_by_clout:
+        team_name, team_players, max_clout, max_confidence, awards = tup
+        row_count += 1
+        output += f"""<tr style="height: 20px">\n<th id="810171351R{row_count}" style="height: 20px;" class="row-headers-background"><div class="row-header-wrapper" style="line-height: 20px">{row_count}</div></th>\n"""
+
+        # 1. break down team into the players
+        # 2. calculate the seed from those players
+        # 3. for each player, write a cell and style by that player's eligibility
+        player_output = ''
+        player_styles = []
+        for player in team_players:
+            style = STYLE_NEEDS_CHECKING
+
+            r = team_players[player]
+            best_div = r.get_best_division_for_player(player)
+            low_ink_placements = r.get_low_ink_placements(player)
+            best_li_placement = r.best_low_ink_placement(player)
+            if r.placement_is_winning_low_ink(best_li_placement):
+                style = STYLE_BANNED
+            elif best_div.normalised_value == 4:
+                style = STYLE_EXCEPTION
+            elif best_div.normalised_value <= 3:
+                style = STYLE_BANNED
+            elif not best_div.is_unknown:
+                style = STYLE_GOOD
+
+            player_styles.append(style)
+            names = list(set([name.value for name in player.names if name and name.value]))
+            names = truncate(', '.join(names[0:]), 1000, "…")
+
+            player_detail = f"Names: {names} \n"
+            player_detail += f"Best Div: {best_div} \n"
+            if best_li_placement:
+                player_detail += f"Best LI: Came {best_li_placement[0]} in {best_li_placement[1]} in {best_li_placement[2]} \n"
+            if len(low_ink_placements) > 1:
+                for placement in low_ink_placements:
+                    if placement != best_li_placement:
+                        player_detail += f"LI placements: Came {placement[0]} in {placement[1]} in {placement[2]} \n"
+            player_detail += f"Teams: {join(', ', r.get_teams_for_player(player))} \n"
+            player_output += f"""<td class="{style}" dir="ltr"><div class="tooltip">{player.name}<pre class="tooltiptext">{player_detail}</pre></div></td>\n"""
+
+        team_seed_colour = STYLE_GOOD if max_confidence > 70 else STYLE_NEEDS_CHECKING
+        team_name_colour = STYLE_GOOD if all(style == STYLE_GOOD for style in player_styles) else STYLE_NEEDS_CHECKING
+
+        team_seed = ordered.index(tup) + 1
+        team_detail = f"Clout: {max_clout} ({max_confidence}% confidence) {awards}"
+        output += f"""<td class="{team_seed_colour}" dir="ltr">{team_seed}</td>\n"""
+        output += f"""<td class="{team_name_colour}" dir="ltr"><div class="tooltip">{team_name}<pre class="tooltiptext">{team_detail}</pre></div></td>\n"""
+        output += player_output
+
+        output += """</tr>\n"""
+
+    output += HTML_END
+    f = io.StringIO(output)
+    await ctx.channel.send(content="Here ya go! 🎈", file=File(fp=f, filename="Verifications.html"))
+
+
 class SlappCommands(commands.Cog):
     """A grouping of Slapp-related commands."""
+
+    @staticmethod
+    def prepare_bulk_slapp(tournament: List[dict]) -> Tuple[str, List[Tuple[str, str]]]:
+        verification_message = ''
+        players_to_queue: List[(str, str)] = []
+
+        for team in tournament:
+            team_name = team.get('name', None)
+            team_id = team.get('persistentTeamID', None)
+
+            if not team_name or not team_id:
+                continue
+
+            players = team.get('players', None)
+            if not players:
+                verification_message += f'Ignoring team {team_name} ({team_id}) because they have no players!\n'
+                continue
+
+            ignored_players = [truncate(player.get("inGameName", "(unknown player)"), 25, '…')
+                               for player in players if not player.get('persistentPlayerID')]
+
+            players = [player for player in players if player.get('persistentPlayerID')]
+            if len(players) < 4:
+                verification_message += f"Ignoring the player(s) from team {team_name} ({team_id}) as they don't have a persistent id: [{', '.join(ignored_players)}]\n"
+                verification_message += f"The team {team_name} ({team_id}) only has {len(players)} players with persistent ids, not calculating.\n"
+                continue
+
+            for player in players:
+                player_slug = player['persistentPlayerID']  # We've already verified this field is good
+                players_to_queue.append((team_name, player_slug))
+
+        return verification_message, players_to_queue
 
     @commands.command(
         name='autoseed',
@@ -67,36 +244,13 @@ class SlappCommands(commands.Cog):
             await ctx.send(f"There are no teams in this tournament 😔 (id: {tourney_id})")
             return
 
-        verification_message = ''
+        verification_message, players_to_queue = SlappCommands.prepare_bulk_slapp(tournament)
+
+        # Do the autoseed list
         await add_to_queue(None, 'autoseed_start')
-
-        for team in tournament:
-            name = team.get('name', None)
-            team_id = team.get('persistentTeamID', None)
-
-            if not name or not team_id:
-                continue
-
-            players = team.get('players', None)
-            if not players:
-                verification_message += f'The team {name} ({team_id}) has no players!\n'
-                continue
-
-            ignored_players = [truncate(player.get("inGameName", "(unknown player)"), 25, '…')
-                               for player in players if not player.get('persistentPlayerID')]
-
-            players = [player for player in players if player.get('persistentPlayerID')]
-            if len(players) < 4:
-                verification_message += f"Ignoring the player(s) from team {name} ({team_id}) as they don't have a persistent id: [{', '.join(ignored_players)}]\n"
-                verification_message += f"The team {name} ({team_id}) only has {len(players)} players, not calculating.\n"
-                continue
-
-            for player in players:
-                player_slug = player['persistentPlayerID']  # We've already verified this field is good
-                await add_to_queue(None, 'autoseed:' + name)
-                await query_slapp(player_slug)
-
-        # Finish off the autoseed list
+        for pair in players_to_queue:
+            await add_to_queue(None, 'autoseed:' + pair[0])
+            await query_slapp(pair[1])
         await add_to_queue(ctx, 'autoseed_end')
 
         if verification_message:
@@ -126,38 +280,39 @@ class SlappCommands(commands.Cog):
             return
 
         if not team_slug_or_confirmation:
-            await ctx.send(f"Found {len(tournament)} teams. To verify all these teams use `{COMMAND_PREFIX}verify all`")
+            await ctx.send(f"Found {len(tournament)} teams for tourney {tourney_id}. To verify all these teams use `{COMMAND_PREFIX}verify all`")
+            return
+
+        if not any(team.get('players', None) for team in tournament):
+            await ctx.send(f"There are no teams in this tournament 😔 (id: {tourney_id})")
             return
 
         do_all: bool = team_slug_or_confirmation.lower() == 'all'
         verification_message: str = ""
 
         if do_all:
-            verification_message: str = "I'm working on it, come back later :) - Slate"
+            await begin_slapp_html(ctx, tournament)
         else:
             team_slug = team_slug_or_confirmation
             for team in tournament:
-                name = team['name'] if 'name' in team else None
-                team_id = team['persistentTeamID'] if 'persistentTeamID' in team else None
-                if not name or not team_id:
+                t = BattlefyTeam.from_dict(team)
+                if not t.name or not t.persistent_team_id:
                     verification_message += f'The team data is incomplete or in a bad format.\n'
                     break
 
-                if team['_id'] == team_slug or team['persistentTeamID'] == team_slug:
-                    players = team['players'] if 'players' in team else None
-                    if not players:
-                        verification_message += f'The team {name} ({team_id}) has no players!\n'
+                if team['_id'] == team_slug or t.persistent_team_id == team_slug:
+                    if not t.players:
+                        verification_message += f'The team {t.name} ({t.persistent_team_id}) has no players!\n'
                         continue
-                    await ctx.send(content=f'Checking team: {name} ({team_id})')
+                    await ctx.send(content=f'Checking team: {t.name} ({t.persistent_team_id})')
 
-                    for player in players:
-                        player_slug = player['userSlug'] if 'userSlug' in player else None
-                        if not player_slug:
-                            verification_message += f'The team {name} ({team_id}) has a player with no slug!\n'
+                    for player in t.players:
+                        if not player.user_slug:
+                            verification_message += f'The team {t.name} ({t.persistent_team_id}) has a player with no slug!\n'
                             continue
                         else:
                             await add_to_queue(ctx, 'verify')
-                            await query_slapp(player_slug)
+                            await query_slapp(player.user_slug)
                 else:
                     continue
 
@@ -192,7 +347,7 @@ class SlappCommands(commands.Cog):
         help=f'{COMMAND_PREFIX}full <slapp_id>',
         pass_ctx=True)
     async def full(self, ctx: Context, slapp_id: str):
-        print('full called with mode_to_translate ' + slapp_id)
+        print('full called with slapp_id ' + slapp_id)
         await add_to_queue(ctx, 'full')
         await slapp_describe(slapp_id)
 
@@ -212,7 +367,7 @@ class SlappCommands(commands.Cog):
         # This comes back in the receive_slapp_response -> handle_predict
 
     @staticmethod
-    async def send_slapp(ctx: Context, success_message: str, response: dict):
+    async def send_slapp(ctx: Context, success_message: str, response: SlappResponseObject):
         if success_message == "OK":
             try:
                 builder, colour = process_slapp(response)
@@ -268,9 +423,9 @@ class SlappCommands(commands.Cog):
         elif not description.startswith("autoseed_end"):
             team_name = description.rpartition(':')[2]  # take the right side of the colon
             if module_autoseed_list.get(team_name):
-                module_autoseed_list[team_name].append(response)
+                module_autoseed_list[team_name].append(SlappResponseObject(response))
             else:
-                module_autoseed_list[team_name] = [response]
+                module_autoseed_list[team_name] = [SlappResponseObject(response)]
         else:
             # End, do the thing
             message = ''
@@ -282,9 +437,7 @@ class SlappCommands(commands.Cog):
                 for team_name in module_autoseed_list:
                     team_players = []
                     team_awards = []
-                    for player_response in module_autoseed_list[team_name]:
-                        r = SlappResponseObject(player_response)
-
+                    for r in module_autoseed_list[team_name]:
                         if r.matched_players_len == 0:
                             p = Player(names=[r.query or UNKNOWN_PLAYER], sources=r.sources.keys())
                             pass
@@ -414,7 +567,7 @@ class SlappCommands(commands.Cog):
                     await SlappCommands.send_slapp(
                         ctx=ctx,
                         success_message=success_message,
-                        response=response)
+                        response=SlappResponseObject(response))
                 else:
                     await SlappCommands.handle_predict(ctx, description, response)
             elif description.startswith('autoseed'):
@@ -422,7 +575,7 @@ class SlappCommands(commands.Cog):
                     await SlappCommands.send_slapp(
                         ctx=ctx,
                         success_message=success_message,
-                        response=response)
+                        response=SlappResponseObject(response))
 
                 # If the start, send on and read again.
                 if description.startswith("autoseed_start"):
@@ -436,21 +589,38 @@ class SlappCommands(commands.Cog):
                 if description.startswith("autoseed_end"):
                     await SlappCommands.handle_autoseed(ctx, description, None)
                     slapp_ctx_queue.popleft()
+            elif description.startswith('html'):
+                if success_message != "OK":
+                    await SlappCommands.send_slapp(
+                        ctx=ctx,
+                        success_message=success_message,
+                        response=SlappResponseObject(response))
+
+                # If the start, send on and read again.
+                if description.startswith("html_start"):
+                    await handle_html(None, description, None)
+                    ctx, description = slapp_ctx_queue.popleft()
+
+                await handle_html(ctx, description, response)
+
+                # Check if last.
+                ctx, description = slapp_ctx_queue[0]
+                if description.startswith("html_end"):
+                    await handle_html(ctx, description, None)
+                    slapp_ctx_queue.popleft()
 
             else:
                 await SlappCommands.send_slapp(
                     ctx=ctx,
                     success_message=success_message,
-                    response=response)
+                    response=SlappResponseObject(response))
 
     @staticmethod
     def get_latest_ipl():
         return get_tournament_ids('inkling-performance-labs')[0]
 
 
-def process_slapp(response: dict) -> (Embed, Color):
-    r: SlappResponseObject = SlappResponseObject(response)
-
+def process_slapp(r: SlappResponseObject) -> (Embed, Color):
     if r.has_matched_players and r.has_matched_teams:
         title = f"Found {r.matched_players_len} player{('' if (r.matched_players_len == 1) else 's')} " \
                 f"and {r.matched_teams_len} team{('' if (r.matched_teams_len == 1) else 's')}!"
@@ -479,19 +649,7 @@ def process_slapp(response: dict) -> (Embed, Color):
             names = list(set([escape_characters(name.value) for name in p.names if name and name.value]))
             current_name = f"{names[0]}" if len(names) else "(Unnamed Player)"
 
-            team_ids: List[UUID] = p.teams
-            resolved_teams: List[Team] = []
-            for team_id in team_ids:
-                from slapp_py.core_classes.builtins import NoTeam
-                if team_id == NoTeam.guid:
-                    resolved_teams.append(NoTeam)
-                else:
-                    team = r.known_teams.get(team_id.__str__(), None)
-                    if not team:
-                        print(f"Team id was not specified in JSON: {team_id}")
-                    else:
-                        resolved_teams.append(team)
-
+            resolved_teams = r.get_teams_for_player(p)
             current_team = f'Plays for: ```{resolved_teams[0]}```\n' if resolved_teams else ''
 
             if len(resolved_teams) > 1:
@@ -542,6 +700,7 @@ def process_slapp(response: dict) -> (Embed, Color):
             top500 = (CROWN + " ") if p.top500 else ''
             country_flag = p.country_flag + ' ' if p.country_flag else ''
             notable_results = r.get_first_placements(p)
+            won_low_ink = r.placement_is_winning_low_ink(r.best_low_ink_placement(p))
 
             if '`' in current_name:
                 current_name = f"```{current_name}```"
@@ -570,6 +729,9 @@ def process_slapp(response: dict) -> (Embed, Color):
 
                 if len(notable_results):
                     notable_results_str = ''
+                    if won_low_ink:
+                        notable_results_str += LOW_INK + ' Low Ink Winner\n'
+
                     for win in notable_results:
                         notable_results_str += TROPHY + ' Won ' + win + '\n'
 
@@ -654,7 +816,7 @@ def process_slapp(response: dict) -> (Embed, Color):
                         players_in_team.append(p)
 
             player_strings = player_strings[0:-len(separator)]
-            div_phrase = Team.best_team_player_div_string(t, players, r.known_teams)
+            div_phrase = best_team_player_div_string(t, players, r.known_teams)
             if div_phrase:
                 div_phrase += '\n'
             team_sources: List[UUID] = t.sources
@@ -731,3 +893,45 @@ def process_slapp(response: dict) -> (Embed, Color):
         ),
         icon_url="https://media.discordapp.net/attachments/471361750986522647/758104388824072253/icon.png")
     return builder, embed_colour
+
+
+def best_team_player_div_string(
+        team: Team,
+        players_for_team: List[Dict[str, Union[dict, object, bool]]],
+        known_teams: Dict[str, Team]):
+    if not players_for_team or not known_teams:
+        return ''
+
+    highest_div: Division = team.get_best_div()
+    highest_team: Team = team
+    best_player: Optional[Player] = None
+    for player_tuple in players_for_team:
+        if player_tuple:
+            in_team = player_tuple["Item2"] if "Item2" in player_tuple else False
+            p: Union[dict, Player] = player_tuple["Item1"] if "Item1" in player_tuple else None
+            if p is None:
+                continue
+            elif isinstance(p, dict):
+                p: Player = Player.from_dict(p)
+            elif isinstance(p, Player):
+                pass
+            else:
+                assert False, f"Unknown Player object {p}"
+
+            if in_team and len(p.teams) > 0:
+                for team_id in p.teams:
+                    player_team = known_teams[team_id.__str__()] if known_teams and team_id in known_teams else None
+                    if (player_team is not None) \
+                            and (not player_team.current_div.is_unknown) \
+                            and (highest_div.is_unknown or (player_team.current_div < highest_div)):
+                        highest_div = player_team.current_div
+                        highest_team = player_team
+                        best_player = p
+
+    if highest_div.is_unknown or team.current_div.is_unknown or best_player is None:
+        return ''
+    elif highest_div == team.current_div:
+        return 'No higher div players.'
+    else:
+        name: str = best_player.name.value
+        return f"Highest div player is ``{name}`` who plays for {highest_team.name} ({highest_div})."
