@@ -141,6 +141,8 @@ COPY . .
 # ApplicationData is /home/usr/
 COPY bin/net5.0 /usr/SplatTag/net5.0
 COPY bin/Snapshot-*.json /usr/src/SplatTag/
+
+# Dola env (the rest are provided by the .env file)
 ENV SLAPP_CONSOLE_PATH=/usr/SplatTag/net5.0/SplatTagConsole.dll
 ENV SLAPP_DATA_FOLDER=/usr/src/SplatTag/
 

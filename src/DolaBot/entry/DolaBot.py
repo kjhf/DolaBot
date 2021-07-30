@@ -6,6 +6,8 @@ import sys
 import discord
 from discord.ext import commands
 from discord.ext.commands import Bot, CommandNotFound, UserInputError, MissingRequiredArgument, Context
+
+from DolaBot.helpers.channel_logger import ChannelLogHandler
 from slapp_py.slapp_runner.slapipes import initialise_slapp
 
 from DolaBot.cogs.bot_util_commands import BotUtilCommands
@@ -26,8 +28,7 @@ class DolaBot(Bot):
         intents.typing = False
         super().__init__(
             command_prefix=COMMAND_PREFIX,
-            intents=intents,
-            owner_id=os.getenv("OWNER_ID")
+            intents=intents
         )
 
         # Load Cogs
@@ -61,7 +62,8 @@ class DolaBot(Bot):
         await self.process_commands(message)
 
     async def on_ready(self):
-        print(f'Logged in as {self.user.name}, id {self.user.id}')
+        ChannelLogHandler(self)
+        logging.info(f'Logged in as {self.user.name}, id {self.user.id}')
 
         # noinspection PyUnreachableCode
         if __debug__:

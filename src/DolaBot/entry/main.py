@@ -1,6 +1,6 @@
 import os
-
 import dotenv
+import logging
 
 if __name__ == '__main__':
     dotenv.load_dotenv()
@@ -9,6 +9,8 @@ if __name__ == '__main__':
 
     # Import must be after the env loading
     from DolaBot.entry.DolaBot import DolaBot
+
+    logging.basicConfig(level=logging.INFO)
     dola = DolaBot()
     dola.do_the_thing()
-    print("Main exited!")
+    logging.info("Main exited!")

@@ -1,4 +1,5 @@
 """Meme commands cog."""
+import logging
 import os
 import re
 from typing import Union
@@ -41,11 +42,11 @@ class MemeCommands(commands.Cog):
                         if not block:
                             break
                         handle.write(block)
-                print(f'Saved url {quality_or_url} temp to {filename}')
+                logging.info(f'Saved url {quality_or_url} temp to {filename}')
             else:
                 quality = int(quality_or_url)
                 await ctx.author.avatar_url.save(filename)
-                print(f'Saved {ctx.author} avatar at url {ctx.author.avatar_url} temp to {filename}')
+                logging.info(f'Saved {ctx.author} avatar at url {ctx.author.avatar_url} temp to {filename}')
 
             from PIL import Image
             im = Image.open(filename)

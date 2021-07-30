@@ -1,5 +1,6 @@
 """Slapp commands cog."""
 import io
+import logging
 import traceback
 from collections import namedtuple, deque
 from typing import Optional, List, Tuple, Dict, Deque, Union
@@ -192,6 +193,18 @@ class SlappCommands(commands.Cog):
     """A grouping of Slapp-related commands."""
 
     @staticmethod
+    def has_slapp_started():
+        return slapp_started
+
+    @staticmethod
+    def has_slapp_caching_finished():
+        return slapp_caching_finished
+
+    @staticmethod
+    def get_slapp_queue_length():
+        return len(slapp_ctx_queue)
+
+    @staticmethod
     def prepare_bulk_slapp(tournament: List[dict]) -> Tuple[str, List[Tuple[str, str]]]:
         verification_message = ''
         players_to_queue: List[(str, str)] = []
@@ -335,7 +348,7 @@ class SlappCommands(commands.Cog):
             await ctx.send(f"💡 Your query is small so might take a while. "
                            f"You can help by specifying `--exactcase` and/or `--clantag` as appropriate.")
 
-        print('slapp called with query ' + query)
+        logging.debug('slapp called with query ' + query)
         await add_to_queue(ctx, 'slapp')
         await query_slapp(query)
 
@@ -347,7 +360,7 @@ class SlappCommands(commands.Cog):
         help=f'{COMMAND_PREFIX}full <slapp_id>',
         pass_ctx=True)
     async def full(self, ctx: Context, slapp_id: str):
-        print('full called with slapp_id ' + slapp_id)
+        logging.info('full called with slapp_id ' + slapp_id)
         await add_to_queue(ctx, 'full')
         await slapp_describe(slapp_id)
 
@@ -359,7 +372,7 @@ class SlappCommands(commands.Cog):
         help=f'{COMMAND_PREFIX}predict <slapp_id_1> <slapp_id_2>',
         pass_ctx=True)
     async def predict(self, ctx: Context, slapp_id_team_1: str, slapp_id_team_2: str):
-        print(f'predict called with teams {slapp_id_team_1=} {slapp_id_team_2=}')
+        logging.info(f'predict called with teams {slapp_id_team_1=} {slapp_id_team_2=}')
         await add_to_queue(ctx, 'predict_1')
         await slapp_describe(slapp_id_team_1)
         await add_to_queue(ctx, 'predict_2')
@@ -374,7 +387,7 @@ class SlappCommands(commands.Cog):
             except Exception as e:
                 await ctx.send(content=f'Something went wrong processing the result from Slapp. Blame Slate. 😒🤔 '
                                        f'({e.__str__()})')
-                print(traceback.format_exc())
+                logging.exception(exc_info=e, msg=traceback.format_exc())
                 return
 
             try:
@@ -409,8 +422,8 @@ class SlappCommands(commands.Cog):
 
             except Exception as e:
                 await ctx.send(content=f'Too many results, sorry 😔 ({e.__str__()})')
-                print(traceback.format_exc())
-                print(f'Attempted to send:\n{builder.to_dict()}')
+                logging.exception(exc_info=e, msg=traceback.format_exc())
+                logging.info(f'Attempted to send:\n{builder.to_dict()}')
         else:
             await ctx.send(content=f'Unexpected error from Slapp 🤔: {success_message}')
 
@@ -549,14 +562,14 @@ class SlappCommands(commands.Cog):
 
         if success_message == "Caching task done.":
             slapp_caching_finished = True
-            print(f"ACK caching done.")
+            logging.info(f"ACK caching done.")
             return
 
         if not slapp_started:
-            print(f"Slapp connection established. Discarding first result: {success_message=}, {response=}")
+            logging.info(f"Slapp connection established. Discarding first result: {success_message=}, {response=}")
             slapp_started = True
         elif len(slapp_ctx_queue) == 0:
-            print(f"receive_slapp_response but queue is empty. Discarding result: {success_message=}, {response=}")
+            logging.warning(f"receive_slapp_response but queue is empty. Discarding result: {success_message=}, {response=}")
         else:
             ctx, description = slapp_ctx_queue.popleft()
             if ctx:
@@ -693,7 +706,7 @@ def process_slapp(r: SlappResponseObject) -> (Embed, Color):
                 else:
                     name = r.sources.get(source.__str__(), None)
                     if not name:
-                        print(f"Source was not specified in JSON: {source}")
+                        logging.error(f"Source was not specified in JSON: {source}")
                     else:
                         player_source_names.append(name)
             player_sources: List[str] = list(map(lambda s: attempt_link_source(s), player_source_names))
@@ -829,7 +842,7 @@ def process_slapp(r: SlappResponseObject) -> (Embed, Color):
                 else:
                     name = r.sources.get(source.__str__(), None)
                     if not name:
-                        print(f"Source was not specified in JSON: {source}")
+                        logging.error(f"Source was not specified in JSON: {source}")
                     else:
                         team_source_names.append(name)
             team_sources: str = "\n ".join([attempt_link_source(s) for s in team_source_names])

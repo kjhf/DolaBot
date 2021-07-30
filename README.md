@@ -20,7 +20,9 @@ OWNER_ID=123456789
 # Path to SplatTagConsole for Slapp things
 SLAPP_CONSOLE_PATH=".../SplatTagConsole.dll"
 # Path to the Slapp App Data folder
-SLAPP_DATA_FOLDER=".../SplatTag"  
+SLAPP_DATA_FOLDER=".../SplatTag"
+# Discord id of a logging channel (optional)
+LOGS_CHANNEL=870436255777837098
 ```
 
 You must also set the relevant env values for [SlappPy](https://github.com/kjhf/SlappPy)
@@ -40,7 +42,14 @@ THEN
 After the build step,
 * `az login`
 * `az acr login --name slate`
-* `docker push slate.azurecr.io/dola:latest` 
+* `docker push slate.azurecr.io/dola:latest`
+* To stop:
+  * `az container stop --name dola --resource-group slapp-resource-group`
+* To start (note this starts the long op in this window!):
+  * `az container start --name dola --resource-group slapp-resource-group`
+* This should be sufficient, but to recreate from scratch:
+  * `az container create --resource-group slapp-resource-group --name dola --image slate.azurecr.io/dola`
+  * The username is slate, and the password is in the ACR access keys.
 
 ### Azure Cloud setup from scratch
 ```shell
