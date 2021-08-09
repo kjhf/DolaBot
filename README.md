@@ -23,6 +23,10 @@ SLAPP_CONSOLE_PATH=".../SplatTagConsole.dll"
 SLAPP_DATA_FOLDER=".../SplatTag"
 # Discord id of a logging channel (optional)
 LOGS_CHANNEL=870436255777837098
+# Bot command symbol (optional). 
+# '~' by default or not specified.
+# Recommend using a different symbol for local testing.
+BOT_COMMAND_SYMBOL="+"
 ```
 
 You must also set the relevant env values for [SlappPy](https://github.com/kjhf/SlappPy)

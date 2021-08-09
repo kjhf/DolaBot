@@ -14,7 +14,6 @@ def get_random_footer_phrase() -> str:
         .choice(FOOTER_PHRASES)\
         .replace('%weapon%', weapons.get_random_weapon())
 
-
 FOOTER_PHRASES = [
     # General and for the morale
     "Slate says hi. ",
@@ -27,20 +26,24 @@ FOOTER_PHRASES = [
     "I'm just here to make your verification slightly easier. ",
     "The real journey was the friends we made along the way. ",
     "Are you looking after yourself? ",
-    "Stay hydrated, human. I'll pass on it though. ",
+    "Stay hydrated! ",
     "http://aws.random.cat 🐱 ",
     "https://random.dog/ 🐕 ",
     "I'm written in Python, Slapp is written in C#, but Slate is written in cups of tea and base 4 GCAT. ",
     "This sentence was written past 3am. ",
+    "Go to bed! ",
     "Just ignore when I used to tell you how long a query took. I lied about it. ",
     "You can join the dev server at https://discord.gg/wZZv2Cr",
-    "Did you know that I have a ~jpg function? ",
+    "Did you know that I have a jpg function? ",
     "The answer is... yes, that one. ",
     "The answer is... no. ",
 
     # LGBT+
+    "Be gay! Do crimes! ",
+    "Rule 1: don't be a dick! ",
     "Imagine a computer program to be non-binary. Haha. ",
     "Trans rights! ",
+    "Ewww cooties. ",
 
     # Splatoon and tournament shout-outs
     "You should Step Up, Europe. ",
@@ -54,6 +57,12 @@ FOOTER_PHRASES = [
     "Thanks Inkipedia! ",
     "Your weapon of the day is... %weapon%! ",
     "The spirits tell me... %weapon%! ",
+    "You should try anchor! ",
+    "You should try support! ",
+    "You should try slayer! ",
+    "PIZZA TIME! ",
+    "I miss Flounder Heights. ",
+    "Now with less lag! ",
 
     # Internet memes and other game references
     "Other... games...? ",
@@ -74,6 +83,9 @@ FOOTER_PHRASES = [
     "Wake up, Mr Freeman. ",
     "Stonks. ",
     "*Sweats nervously* ",
+    "I fancy some chimkin. ",
+    "[Gandalf Europop Nod] ",
+    "Hello Human. ",
 
     # TV, Film, and Music references
     "Orange is the new black. ",
@@ -88,6 +100,13 @@ FOOTER_PHRASES = [
     "Soon may the Wellerman come, to bring us sugar and tea and rum... ",
     "What is love? ",
     "Ceci n'est pas une pipe. ",
+    "2 plus 2 is 4; minus 1 that's 3 QUIK MAFS. ",
+    "I've got... two tickets to paradise! ",
+    "I believe in a thing called love! ",
+    "Honey honey, how you thrill me... ",
+    "I'm high on believing! That you're in love with me! ",
+    "Gotta a one-way ticket to hell and back! ",
+    "You'll never know, dear, how much I love you. ",
 
     # Streamer parodies (YouTubers and Twitch)
     "We BOUNCE THAT BOI ",
@@ -97,5 +116,6 @@ FOOTER_PHRASES = [
     "More Splatoon content, goddammit. ",
     "Hello it is Dola bringing you yet another Slapp result. ",
     "Not sponsored by any mobile game or VPN software. ",
+    "OH FECK! ",
 
 ]
