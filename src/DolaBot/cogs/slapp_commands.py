@@ -1,10 +1,13 @@
 """Slapp commands cog."""
+import copy
 import io
 import logging
 import traceback
-from collections import namedtuple, deque
+from collections import namedtuple, deque, OrderedDict
 from typing import Optional, List, Tuple, Dict, Deque, Union
 
+from DolaBot.helpers.discord_renderer_helper import safe_backticks, close_backticks_if_unclosed, wrap_in_backticks
+from DolaBot.helpers.supports_send import SupportsSend
 from battlefy_toolkit.downloaders.org_downloader import get_tournament_ids
 from slapp_py.core_classes.builtins import UNKNOWN_PLAYER
 from slapp_py.core_classes.division import Division
@@ -12,9 +15,9 @@ from slapp_py.core_classes.player import Player
 from slapp_py.core_classes.skill import Skill
 from slapp_py.core_classes.team import Team
 
-from discord import Color, Embed, File
+from discord import Color, Embed, File, Message, RawReactionActionEvent, errors
 from discord.ext import commands
-from discord.ext.commands import Context
+from discord.ext.commands import Context, Bot
 
 from slapp_py.helpers.sources_helper import attempt_link_source
 from slapp_py.misc.download_from_battlefy_result import download_from_battlefy
@@ -24,17 +27,19 @@ from slapp_py.slapp_runner.slapp_response_object import SlappResponseObject
 
 from DolaBot.constants import emojis
 from DolaBot.constants.bot_constants import COMMAND_PREFIX
-from DolaBot.constants.emojis import CROWN, TROPHY, TICK, TURTLE, RUNNING, LOW_INK
+from DolaBot.constants.emojis import CROWN, TROPHY, TICK, TURTLE, RUNNING, LOW_INK, NUMBERS_KEY_CAPS
 from DolaBot.constants.footer_phrases import get_random_footer_phrase
 from DolaBot.helpers.embed_helper import to_embed
+from DolaBot.helpers.processed_slapp_object import ProcessedSlappObject
 from slapp_py.helpers.str_helper import join, truncate, escape_characters
 
 from operator import itemgetter
 from uuid import UUID
 
 
-SlappQueueItem = namedtuple('SlappQueueItem', ('Context', 'str'))
+SlappQueueItem = namedtuple('SlappQueueItem', ('SupportsSend', 'str'))
 slapp_ctx_queue: Deque[SlappQueueItem] = deque()
+slapp_reacts_queue: OrderedDict[str, Dict[str, SlappResponseObject]] = OrderedDict()
 module_autoseed_list: Optional[Dict[str, List[SlappResponseObject]]] = dict()
 module_html_list: Optional[Dict[str, List[SlappResponseObject]]] = dict()
 module_predict_team_1: Optional[dict] = None
@@ -42,8 +47,8 @@ slapp_started: bool = False
 slapp_caching_finished: bool = False
 
 
-async def add_to_queue(ctx: Optional[Context], description: str):
-    if ctx:
+async def add_to_queue(ctx: Union[None, SupportsSend, Context], description: str):
+    if isinstance(ctx, Context):
         await ctx.message.add_reaction(RUNNING if slapp_caching_finished else TURTLE)
     slapp_ctx_queue.append(SlappQueueItem(ctx, description))
 
@@ -64,7 +69,7 @@ async def begin_slapp_html(ctx, tournament: List[dict]):
     # Finished in handle_html
 
 
-async def handle_html(ctx: Optional[Context], description: str, response: Optional[dict]):
+async def handle_html(ctx: Optional[SupportsSend], description: str, response: Optional[dict]):
     global module_html_list
 
     if description.startswith("html_start"):
@@ -93,9 +98,9 @@ async def handle_html(ctx: Optional[Context], description: str, response: Option
                     p = Player(names=[r.query or UNKNOWN_PLAYER], sources=r.sources.keys())
                     pass
                 elif r.matched_players_len > 1:
-                    p = Player(names=[r.query or UNKNOWN_PLAYER], sources=r.sources.keys())
-                    message += f"Too many matches for player {r.query} 😔 " \
-                               f"({r.matched_players_len=})\n"
+                    p = Player.soft_merge_from_multiple(r.matched_players)
+                    message += f"Soft merged player with query {r.query} with " \
+                               f"({r.matched_players_len} results\n"
                 else:
                     p = r.matched_players[0]
 
@@ -155,6 +160,10 @@ async def handle_html(ctx: Optional[Context], description: str, response: Option
                 style = STYLE_EXCEPTION
             elif best_div.normalised_value <= 3:
                 style = STYLE_BANNED
+            # Considering adding this, but if we're in December and the last result was at the beginning of the year,
+            # or indeed years ago, then this wouldn't be a good indication.
+            # elif best_li_placement is not None:
+            #     style = STYLE_GOOD
             elif not best_div.is_unknown:
                 style = STYLE_GOOD
 
@@ -186,7 +195,7 @@ async def handle_html(ctx: Optional[Context], description: str, response: Option
 
     output += HTML_END
     f = io.StringIO(output)
-    await ctx.channel.send(content="Here ya go! 🎈", file=File(fp=f, filename="Verifications.html"))
+    await ctx.send(content="Here ya go! 🎈", file=File(fp=f, filename="Verifications.html"))
 
 
 class SlappCommands(commands.Cog):
@@ -205,11 +214,39 @@ class SlappCommands(commands.Cog):
         return len(slapp_ctx_queue)
 
     @staticmethod
-    def prepare_bulk_slapp(tournament: List[dict]) -> Tuple[str, List[Tuple[str, str]]]:
+    async def handle_reaction(bot: Bot, payload: RawReactionActionEvent):
+        channel = await bot.fetch_channel(payload.channel_id)
+        response = slapp_reacts_queue.get(payload.message_id, {}).get(payload.emoji.name)
+
+        handled = False
+        if response:
+            logging.info(f"Reaction received matching message {payload.message_id=}, {payload.emoji.name=}")
+            if response.is_single_player:
+                await add_to_queue(channel, "full")
+                await slapp_describe(response.single_player.guid)
+                handled = True
+            elif response.is_single_team:
+                await add_to_queue(channel, "full")
+                await slapp_describe(response.single_team.guid)
+                handled = True
+            else:
+                await channel.send(
+                    f"Something went wrong with handling the react: {response.matched_players_len=}, {response.matched_teams_len=}")
+
+        if handled:
+            slapp_reacts_queue[payload.message_id].pop(payload.emoji.name)
+            message: Message = await channel.fetch_message(payload.message_id)
+            try:
+                await message.clear_reaction(payload.emoji.name)
+            except errors.Forbidden:
+                pass
+
+    @staticmethod
+    def prepare_bulk_slapp(teams_to_search: List[dict]) -> Tuple[str, List[Tuple[str, str]]]:
         verification_message = ''
         players_to_queue: List[(str, str)] = []
 
-        for team in tournament:
+        for team in teams_to_search:
             team_name = team.get('name', None)
             team_id = team.get('persistentTeamID', None)
 
@@ -276,7 +313,7 @@ class SlappCommands(commands.Cog):
         description="Verify a signed-up team.",
         help=f'{COMMAND_PREFIX}verify <team_slug>',
         pass_ctx=True)
-    async def verify(self, ctx: Context, team_slug_or_confirmation: Optional[str], tourney_id: Optional[str]):
+    async def verify(self, ctx: Context, team_slug_or_name_or_confirmation: Optional[str], tourney_id: Optional[str]):
         if not slapp_started:
             await ctx.send(f"⏳ Slapp is not running yet.")
             return
@@ -284,7 +321,7 @@ class SlappCommands(commands.Cog):
         if not tourney_id:
             tourney_id = self.get_latest_ipl()
 
-        tournament = list(download_from_battlefy(tourney_id))
+        tournament = list(download_from_battlefy(tourney_id, force=True))
         if isinstance(tournament, list) and len(tournament) == 1:
             tournament = tournament[0]
 
@@ -292,28 +329,30 @@ class SlappCommands(commands.Cog):
             await ctx.send(f"I couldn't download the latest tournament data 😔 (id: {tourney_id})")
             return
 
-        if not team_slug_or_confirmation:
-            await ctx.send(f"Found {len(tournament)} teams for tourney {tourney_id}. To verify all these teams use `{COMMAND_PREFIX}verify all`")
+        if not team_slug_or_name_or_confirmation:
+            await ctx.send(f"Found {len(tournament)} teams for tourney {tourney_id}.\n"
+                           f"To verify all these teams use `{COMMAND_PREFIX}verify all`.\n"
+                           f"Or verify individual teams with `{COMMAND_PREFIX}verify team_slug_or_name`")
             return
 
         if not any(team.get('players', None) for team in tournament):
             await ctx.send(f"There are no teams in this tournament 😔 (id: {tourney_id})")
             return
 
-        do_all: bool = team_slug_or_confirmation.lower() == 'all'
+        do_all: bool = team_slug_or_name_or_confirmation.lower() == "all"
         verification_message: str = ""
 
         if do_all:
             await begin_slapp_html(ctx, tournament)
         else:
-            team_slug = team_slug_or_confirmation
+            team_slug = team_slug_or_name_or_confirmation
             for team in tournament:
                 t = BattlefyTeam.from_dict(team)
-                if not t.name or not t.persistent_team_id:
+                if not t.name or not t.persistent_team_id or not t.name:
                     verification_message += f'The team data is incomplete or in a bad format.\n'
                     break
 
-                if team['_id'] == team_slug or t.persistent_team_id == team_slug:
+                if team_slug in (team['_id'], t.persistent_team_id, t.name):
                     if not t.players:
                         verification_message += f'The team {t.name} ({t.persistent_team_id}) has no players!\n'
                         continue
@@ -380,55 +419,75 @@ class SlappCommands(commands.Cog):
         # This comes back in the receive_slapp_response -> handle_predict
 
     @staticmethod
-    async def send_slapp(ctx: Context, success_message: str, response: SlappResponseObject):
+    async def send_slapp(ctx: SupportsSend, success_message: str, response: SlappResponseObject):
         if success_message == "OK":
             try:
-                builder, colour = process_slapp(response)
+                processed = process_slapp(response)
             except Exception as e:
-                await ctx.send(content=f'Something went wrong processing the result from Slapp. Blame Slate. 😒🤔 '
-                                       f'({e.__str__()})')
+                if ctx:
+                    await ctx.send(content=f'Something went wrong processing the result from Slapp. Blame Slate. 😒🤔 '
+                                           f'({e.__str__()})')
                 logging.exception(exc_info=e, msg=traceback.format_exc())
                 return
 
-            try:
-                removed_fields: List[dict] = []
-                message = 1
-                # Only send 10 messages tops
-                while message <= 10:
-                    # While the message is more than the allowed 6000, or
-                    # The message has more than 20 fields, or
-                    # The removed fields has one only (the footer cannot be alone)
-                    while builder.__len__() > 6000 or len(builder.fields) > 20 or len(removed_fields) == 1:
-                        index = len(builder.fields) - 1
-                        removed: dict = builder._fields[index]
-                        builder.remove_field(index)
-                        removed_fields.append(removed)
+            await SlappCommands.send_built_slapp(ctx, processed)
 
-                    if builder:
-                        await ctx.send(embed=builder)
-
-                    if len(removed_fields):
-                        message += 1
-                        removed_fields.reverse()
-                        builder = Embed(title=f'Page {message}', colour=colour, description='')
-                        for field in removed_fields:
-                            try:
-                                builder._fields.append(field)
-                            except AttributeError:
-                                builder._fields = [field]
-                        removed_fields.clear()
-                    else:
-                        break
-
-            except Exception as e:
-                await ctx.send(content=f'Too many results, sorry 😔 ({e.__str__()})')
-                logging.exception(exc_info=e, msg=traceback.format_exc())
-                logging.info(f'Attempted to send:\n{builder.to_dict()}')
-        else:
+        elif ctx:
             await ctx.send(content=f'Unexpected error from Slapp 🤔: {success_message}')
+        else:
+            logging.error(f'Unexpected error from Slapp and no context to post to. 🤔: {success_message}')
 
     @staticmethod
-    async def handle_autoseed(ctx: Optional[Context], description: str, response: Optional[dict]):
+    async def send_built_slapp(ctx: SupportsSend, processed: ProcessedSlappObject) -> None:
+        builder = processed.embed
+        last_message_sent = None
+
+        try:
+            removed_fields: List[dict] = []
+            message = 1
+            # Only send 10 messages tops
+            while message <= 10:
+                # While the message is more than the allowed 6000, or
+                # The message has more than 20 fields, or
+                # The removed fields has one only (the footer cannot be alone)
+                while builder.__len__() > 6000 or len(builder.fields) > 20 or len(removed_fields) == 1:
+                    index = len(builder.fields) - 1
+                    removed: dict = builder._fields[index]
+                    builder.remove_field(index)
+                    removed_fields.append(removed)
+
+                if ctx and builder:
+                    last_message_sent = await ctx.send(embed=builder)
+
+                if len(removed_fields):
+                    message += 1
+                    removed_fields.reverse()
+                    builder = Embed(title=f'Page {message}', colour=processed.colour, description='')
+                    for field in removed_fields:
+                        try:
+                            builder._fields.append(field)
+                        except AttributeError:
+                            builder._fields = [field]
+                    removed_fields.clear()
+                else:
+                    break
+
+            # Now we're at the end, react to the last message
+            if last_message_sent is not None:
+                for react in processed.reacts:
+                    await last_message_sent.add_reaction(react)
+
+                # and record in a buffer
+                add_to_reacts_buffer(last_message_sent.id, processed.reacts)
+
+        except Exception as e:
+            if ctx:
+                await ctx.send(content=f'Too many results, sorry 😔 ({e.__str__()})')
+            logging.exception(exc_info=e, msg=traceback.format_exc())
+            logging.info(f'Attempted to send:\n{builder.to_dict()}')
+
+    @staticmethod
+    async def handle_autoseed(ctx: Optional[SupportsSend], description: str, response: Optional[dict]):
         global module_autoseed_list
 
         if description.startswith("autoseed_start"):
@@ -481,7 +540,11 @@ class SlappCommands(commands.Cog):
                 message = "Err... I didn't get any teams back from Slapp."
 
             if message:
-                await ctx.send(message)
+                if ctx:
+                    await ctx.send(message)
+                else:
+                    logging.warning("Sending a message without context: ")
+                    logging.info(message)
 
             message = ''
             lines: List[str] = ["Here's how I'd order the teams and their players from best-to-worst, and assuming each team puts its best 4 players on:\n```"]
@@ -490,16 +553,24 @@ class SlappCommands(commands.Cog):
 
             for line in lines:
                 if len(message) + len(line) > 1996:
-                    await ctx.send(message + "\n```")
+                    if ctx:
+                        await ctx.send(message + "\n```")
+                    else:
+                        logging.warning("Sending a message without context: ")
+                        logging.info(message + "\n```")
                     message = '```\n'
-
                 message += line + '\n'
 
             if message:
-                await ctx.send(message + "\n```")
+                message = close_backticks_if_unclosed(message + "\n")
+                if ctx:
+                    await ctx.send(message)
+                else:
+                    logging.warning("Sending a message without context: ")
+                    logging.info(message)
 
     @staticmethod
-    async def handle_predict(ctx: Context, description: str, response: dict):
+    async def handle_predict(ctx: SupportsSend, description: str, response: dict):
         global module_predict_team_1
         is_part_2 = description == "predict_2"
         if not is_part_2:
@@ -525,12 +596,16 @@ class SlappCommands(commands.Cog):
                 if team_1_skills:
                     (_, _), (max_clout_1, max_conf_1) = Skill.team_clout(team_1_skills)
                     message += Skill.make_message_clout(max_clout_1, max_conf_1, truncate(team_1.name.value, 25, "…")) + '\n'
+                else:
+                    max_conf_1 = 0
 
                 team_2 = response_2.matched_teams[0]
                 team_2_skills = response_2.get_team_skills(team_2.guid).values()
                 if team_2_skills:
                     (_, _), (max_clout_2, max_conf_2) = Skill.team_clout(team_2_skills)
                     message += Skill.make_message_clout(max_clout_2, max_conf_2, truncate(team_2.name.value, 25, "…")) + '\n'
+                else:
+                    max_conf_2 = 0
 
                 if team_1_skills and team_2_skills:
                     if max_conf_1 > 2 and max_conf_2 > 2:
@@ -572,7 +647,8 @@ class SlappCommands(commands.Cog):
             logging.warning(f"receive_slapp_response but queue is empty. Discarding result: {success_message=}, {response=}")
         else:
             ctx, description = slapp_ctx_queue.popleft()
-            if ctx:
+
+            if isinstance(ctx, Context):
                 await ctx.message.add_reaction(TICK)
 
             if description.startswith('predict_'):
@@ -633,7 +709,7 @@ class SlappCommands(commands.Cog):
         return get_tournament_ids('inkling-performance-labs')[0]
 
 
-def process_slapp(r: SlappResponseObject) -> (Embed, Color):
+def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
     if r.has_matched_players and r.has_matched_teams:
         title = f"Found {r.matched_players_len} player{('' if (r.matched_players_len == 1) else 's')} " \
                 f"and {r.matched_teams_len} team{('' if (r.matched_teams_len == 1) else 's')}!"
@@ -650,6 +726,7 @@ def process_slapp(r: SlappResponseObject) -> (Embed, Color):
 
     builder = to_embed('', colour=colour, title=title)
     embed_colour = colour
+    reacts: Dict[str, SlappResponseObject] = dict()
 
     if r.has_matched_players:
         for i in range(0, MAX_RESULTS):
@@ -661,12 +738,39 @@ def process_slapp(r: SlappResponseObject) -> (Embed, Color):
             # Transform names by adding a backslash to any backslashes.
             names = list(set([escape_characters(name.value) for name in p.names if name and name.value]))
             current_name = f"{names[0]}" if len(names) else "(Unnamed Player)"
-
             resolved_teams = r.get_teams_for_player(p)
-            current_team = f'Plays for: ```{resolved_teams[0]}```\n' if resolved_teams else ''
+
+            if r.is_single_player and resolved_teams:
+                emoji_num = NUMBERS_KEY_CAPS[len(reacts)]
+                cached_response = copy.deepcopy(r)
+                cached_response.matched_players.clear()
+                cached_response.matched_teams.clear()
+                cached_response.matched_teams.append(resolved_teams[0])
+                reacts[emoji_num] = cached_response
+                current_team = f'Plays for:\n{emoji_num} {wrap_in_backticks(resolved_teams[0].__str__())}\n'
+            else:
+                current_team = f'Plays for: {wrap_in_backticks(resolved_teams[0].__str__())}\n' if resolved_teams else ''
 
             if len(resolved_teams) > 1:
-                old_teams = truncate('Old teams: \n```' + join("\n", resolved_teams[1:]) + '```\n', 1000, "…\n```\n")
+                old_teams = 'Old teams: \n'
+                resolved_old_teams = resolved_teams[1:]
+
+                # Add reacts if for a single player entry
+                if r.is_single_player:
+                    for n, old_t in enumerate(resolved_old_teams):
+                        if len(reacts) < len(NUMBERS_KEY_CAPS):
+                            emoji_num = NUMBERS_KEY_CAPS[len(reacts)]
+                            cached_response = copy.deepcopy(r)
+                            cached_response.matched_players.clear()
+                            cached_response.matched_teams.clear()
+                            cached_response.matched_teams.append(old_t)
+                            reacts[emoji_num] = cached_response
+                            resolved_old_teams[n] = emoji_num + " " + wrap_in_backticks(old_t.__str__())
+                else:
+                    resolved_old_teams = [wrap_in_backticks(old_t.__str__()) for old_t in resolved_old_teams]
+
+                old_teams += join("\n", resolved_old_teams)
+                old_teams = truncate(old_teams, 1000, "…\n")
             else:
                 old_teams = ''
 
@@ -715,10 +819,7 @@ def process_slapp(r: SlappResponseObject) -> (Embed, Color):
             notable_results = r.get_first_placements(p)
             won_low_ink = r.placement_is_winning_low_ink(r.best_low_ink_placement(p))
 
-            if '`' in current_name:
-                current_name = f"```{current_name}```"
-            elif '_' in current_name or '*' in current_name:
-                current_name = f"`{current_name}`"
+            current_name = safe_backticks(current_name)
             field_head = truncate(country_flag + top500 + current_name, 256) or ' '
 
             # If there's just the one matched player, move the extras to another field.
@@ -778,14 +879,23 @@ def process_slapp(r: SlappResponseObject) -> (Embed, Color):
                             break
 
             else:
+                if len(reacts) < len(NUMBERS_KEY_CAPS):
+                    emoji_num = NUMBERS_KEY_CAPS[len(reacts)]
+                    cached_response = copy.deepcopy(r)
+                    cached_response.matched_players.clear()
+                    cached_response.matched_players.append(p)
+                    cached_response.matched_teams.clear()
+                    reacts[emoji_num] = cached_response
+                    additional_info = f"\n React {emoji_num} for more\n"
+                else:
+                    additional_info = f"\n More info: {COMMAND_PREFIX}full {p.guid}\n"
+
                 if len(notable_results):
                     notable_results_str = ''
                     for win in notable_results:
                         notable_results_str += TROPHY + ' Won ' + win + '\n'
                 else:
                     notable_results_str = ''
-
-                additional_info = "\n `~full " + p.guid.__str__() + "`\n"
 
                 player_sources: str = "Sources:\n" + "\n".join(player_sources)
                 field_body = (f'{other_names}{current_team}{old_teams}'
@@ -795,8 +905,7 @@ def process_slapp(r: SlappResponseObject) -> (Embed, Color):
                     field_body += additional_info
                 else:
                     field_body = truncate(field_body, 1020 - len(additional_info), indicator="…")
-                    if (field_body.count('```') % 2) == 1:  # If we have an unclosed ```
-                        field_body += '```'
+                    field_body = close_backticks_if_unclosed(field_body)
                     field_body += additional_info
 
                 builder.add_field(name=field_head, value=field_body, inline=False)
@@ -811,24 +920,19 @@ def process_slapp(r: SlappResponseObject) -> (Embed, Color):
             t = r.matched_teams[i]
             players = r.matched_players_for_teams[t.guid.__str__()]
             players_in_team: List[Player] = []
-            player_strings = ''
+            players_objs: List[Player] = []
+            player_strings = []
             for player_tuple in players:
                 if player_tuple:
                     p = player_tuple["Item1"]
                     in_team = player_tuple["Item2"]
                     name = p.name.value
-                    if '`' in name:
-                        name = f"```{name}```"
-                    elif '_' in name or '*' in name:
-                        name = f"`{name}`"
-
-                    player_strings += \
-                        f'{name} {("(Most recent)" if in_team else "(Ex)" if in_team is False else "")}'
-                    player_strings += separator
+                    name = safe_backticks(name)
+                    player_strings.append(f'{name} {("(Most recent)" if in_team else "(Ex)" if in_team is False else "")}')
+                    players_objs.append(p)
                     if in_team:
                         players_in_team.append(p)
 
-            player_strings = player_strings[0:-len(separator)]
             div_phrase = best_team_player_div_string(t, players, r.known_teams)
             if div_phrase:
                 div_phrase += '\n'
@@ -849,7 +953,18 @@ def process_slapp(r: SlappResponseObject) -> (Embed, Color):
 
             # If there's just the one matched team, move the sources to the next field.
             if r.matched_teams_len == 1:
-                info = f'{div_phrase}Players: {player_strings}'
+                # Add in emoji reacts
+                for j, p_str in enumerate(player_strings):
+                    if len(reacts) < len(NUMBERS_KEY_CAPS):
+                        emoji_num = NUMBERS_KEY_CAPS[len(reacts)]
+                        cached_response = copy.deepcopy(r)
+                        cached_response.matched_players.clear()
+                        cached_response.matched_players.append(players_objs[j])
+                        cached_response.matched_teams.clear()
+                        reacts[emoji_num] = cached_response
+                        player_strings[j] = emoji_num + " " + p_str
+
+                info = f'{div_phrase}Players:\n{separator.join(player_strings)}'
                 builder.add_field(name=truncate(t.__str__(), 256, "") or "Unnamed Team",
                                   value=truncate(info, 1023, "…_"),
                                   inline=False)
@@ -883,7 +998,16 @@ def process_slapp(r: SlappResponseObject) -> (Embed, Color):
                                   value=t.guid.__str__(),
                                   inline=False)
             else:
-                additional_info = "\n `~full " + t.guid.__str__() + "`\n"
+                if len(reacts) < len(NUMBERS_KEY_CAPS):
+                    emoji_num = NUMBERS_KEY_CAPS[len(reacts)]
+                    cached_response = copy.deepcopy(r)
+                    cached_response.matched_players.clear()
+                    cached_response.matched_teams.clear()
+                    cached_response.matched_teams.append(t)
+                    reacts[emoji_num] = cached_response
+                    additional_info = f"\n React {emoji_num} for more\n"
+                else:
+                    additional_info = f"\n More info: {COMMAND_PREFIX}full {t.guid}\n"
 
                 field_body = f'{div_phrase}Players: {player_strings}\n' \
                              f'_{team_sources}_' or "(Nothing else to say)"
@@ -892,8 +1016,7 @@ def process_slapp(r: SlappResponseObject) -> (Embed, Color):
                     field_body += additional_info
                 else:
                     field_body = truncate(field_body, 1020 - len(additional_info), indicator="…")
-                    if (field_body.count('```') % 2) == 1:  # If we have an unclosed ```
-                        field_body += '```'
+                    field_body = close_backticks_if_unclosed(field_body)
                     field_body += additional_info
 
                 builder.add_field(name=truncate(t.__str__(), 256, "") or "Unnamed Team",
@@ -905,7 +1028,7 @@ def process_slapp(r: SlappResponseObject) -> (Embed, Color):
             f'Only the first {MAX_RESULTS} results are shown for players and teams.' if r.show_limited else ''
         ),
         icon_url="https://media.discordapp.net/attachments/471361750986522647/758104388824072253/icon.png")
-    return builder, embed_colour
+    return ProcessedSlappObject(builder, embed_colour, reacts)
 
 
 def best_team_player_div_string(
@@ -948,3 +1071,9 @@ def best_team_player_div_string(
     else:
         name: str = best_player.name.value
         return f"Highest div player is ``{name}`` who plays for {highest_team.name} ({highest_div})."
+
+
+def add_to_reacts_buffer(message_id: str, reacts: Dict[str, SlappResponseObject]):
+    slapp_reacts_queue[message_id] = reacts
+    if len(slapp_reacts_queue) > 10:
+        slapp_reacts_queue.popitem(last=False)

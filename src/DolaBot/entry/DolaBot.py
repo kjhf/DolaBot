@@ -4,8 +4,9 @@ import os
 import sys
 
 import discord
+from discord import client, RawReactionActionEvent
 from discord.ext import commands
-from discord.ext.commands import Bot, CommandNotFound, UserInputError, MissingRequiredArgument, Context
+from discord.ext.commands import Bot, CommandNotFound, UserInputError, MissingRequiredArgument, Context, bot
 
 from DolaBot.helpers.channel_logger import ChannelLogHandler
 from slapp_py.slapp_runner.slapipes import initialise_slapp
@@ -23,7 +24,7 @@ class DolaBot(Bot):
 
     def __init__(self):
         intents = discord.Intents.default()
-        intents.members = True  # Subscribe to the privileged members intent for roles.
+        intents.members = True  # Subscribe to the privileged members intent for roles and reactions.
         intents.presences = False
         intents.typing = False
         super().__init__(
@@ -75,6 +76,10 @@ class DolaBot(Bot):
             presence += ' (Debug Attached)'
 
         await self.change_presence(activity=discord.Game(name=presence))
+
+    async def on_raw_reaction_add(self, payload: RawReactionActionEvent):
+        if payload.user_id != self.user.id:
+            await SlappCommands.handle_reaction(self, payload)
 
     def do_the_thing(self):
         loop = asyncio.get_event_loop()

@@ -9,6 +9,9 @@ CROWN = '👑'
 RUNNING = '🏃'
 TURTLE = '🐢'
 TICK = '✅'
+NUMBERS_KEY_CAPS = ["{}\N{COMBINING ENCLOSING KEYCAP}".format(num) for num in range(0, 10)]
+NUMBERS_KEY_CAPS.append("🔟")
+NUMBERS_KEY_CAPS.append("*️⃣")
 
 # Abilities
 ABILITY_DOUBLER = "<:AbilityDoubler:841052609648525382>"
