@@ -4,6 +4,12 @@ FROM mcr.microsoft.com/dotnet/sdk:5.0-buster-slim-amd64
 # FROM https://github.com/docker-library/python/blob/aa33637e3b3fc25891f7a55b82cb8854f8b5d9db/3.9/buster/slim/Dockerfile
 ENV PATH /usr/local/bin:$PATH
 ENV LANG C.UTF-8
+ENV GPG_KEY E3FF2839C048B25C084DEBE9B26995E310250568
+ENV PYTHON_VERSION 3.9.5
+ENV PYTHON_PIP_VERSION 21.1.2
+ENV PYTHON_GET_PIP_URL https://github.com/pypa/get-pip/raw/936e08ce004d0b2fae8952c50f7ccce1bc578ce5/public/get-pip.py
+ENV PYTHON_GET_PIP_SHA256 8890955d56a8262348470a76dc432825f61a84a54e2985a86cd520f656a6e220
+
 RUN set -eux; \
 	apt-get update; \
 	apt-get install -y --no-install-recommends \
@@ -11,11 +17,8 @@ RUN set -eux; \
 		netbase \
 		tzdata \
 	; \
-	rm -rf /var/lib/apt/lists/*
-
-ENV GPG_KEY E3FF2839C048B25C084DEBE9B26995E310250568
-ENV PYTHON_VERSION 3.9.5
-RUN set -ex \
+	rm -rf /var/lib/apt/lists/* \
+&& set -ex \
 	\
 	&& savedAptMark="$(apt-mark showmanual)" \
 	&& apt-get update && apt-get install -y --no-install-recommends \
@@ -94,11 +97,8 @@ RUN cd /usr/local/bin \
 	&& ln -s idle3 idle \
 	&& ln -s pydoc3 pydoc \
 	&& ln -s python3 python \
-	&& ln -s python3-config python-config
-ENV PYTHON_PIP_VERSION 21.1.2
-ENV PYTHON_GET_PIP_URL https://github.com/pypa/get-pip/raw/936e08ce004d0b2fae8952c50f7ccce1bc578ce5/public/get-pip.py
-ENV PYTHON_GET_PIP_SHA256 8890955d56a8262348470a76dc432825f61a84a54e2985a86cd520f656a6e220
-RUN set -ex; \
+	&& ln -s python3-config python-config \
+&& set -ex; \
 	\
 	savedAptMark="$(apt-mark showmanual)"; \
 	apt-get update; \
@@ -131,10 +131,9 @@ RUN set -ex; \
 # Now continue ...
 WORKDIR /usr/
 
+COPY . .
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
 
 # Copy SplatTag
 # GrabSplatTag.sh should be run first (as this puts the needed files into the build context... Docker is dumb.)

@@ -37,23 +37,23 @@ You must also set the relevant env values for [SlappPy](https://github.com/kjhf/
   * `. GrabSplatTag.bat`
   
 THEN
-* `docker build --tag="slate.azurecr.io/dola:latest" -f Dockerfile .`
+* `docker build --no-cache --pull --tag="slate.azurecr.io/dola:latest" -f Dockerfile .`
 
 ### Test or run with 
 * `docker run -t -d slate.azurecr.io/dola`
 
 ### Update Azure Image with
-After the build step,
+After the build step, (note these commands are long in this window!)
 * `az login`
 * `az acr login --name slate`
 * `docker push slate.azurecr.io/dola:latest`
 * To stop:
   * `az container stop --name dola --resource-group slapp-resource-group`
-* To start (note this starts the long op in this window!):
-  * `az container start --name dola --resource-group slapp-resource-group`
-* This should be sufficient, but to recreate from scratch:
-  * `az container create --resource-group slapp-resource-group --name dola --image slate.azurecr.io/dola`
+* To recreate from scratch (this should also re-pull the image)
+  * `az container create --resource-group slapp-resource-group --name dola --image slate.azurecr.io/dola:latest`
   * The username is slate, and the password is in the ACR access keys.
+* To start:
+  * `az container start --name dola --resource-group slapp-resource-group`
 
 ### Azure Cloud setup from scratch
 ```shell
