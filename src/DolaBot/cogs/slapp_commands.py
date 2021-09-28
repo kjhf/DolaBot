@@ -11,6 +11,7 @@ from DolaBot.helpers.supports_send import SupportsSend
 from battlefy_toolkit.downloaders.org_downloader import get_tournament_ids
 from slapp_py.core_classes.builtins import UNKNOWN_PLAYER
 from slapp_py.core_classes.division import Division
+from slapp_py.core_classes.name import Name
 from slapp_py.core_classes.player import Player
 from slapp_py.core_classes.skill import Skill
 from slapp_py.core_classes.team import Team
@@ -95,7 +96,7 @@ async def handle_html(ctx: Optional[SupportsSend], description: str, response: O
             team_awards = []
             for r in module_html_list[team_name]:
                 if r.matched_players_len == 0:
-                    p = Player(names=[r.query or UNKNOWN_PLAYER], sources=r.sources.keys())
+                    p = Player(names=[Name(value=r.query or UNKNOWN_PLAYER, sources=r.sources.keys())])
                     pass
                 elif r.matched_players_len > 1:
                     p = Player.soft_merge_from_multiple(r.matched_players)
@@ -385,7 +386,7 @@ class SlappCommands(commands.Cog):
 
         if len(query) < 3:
             await ctx.send(f"💡 Your query is small so might take a while. "
-                           f"You can help by specifying `--exactcase` and/or `--clantag` as appropriate.")
+                           f"You can help by specifying `--exactcase` and/or `--clantag`, `--player`, `--team` as appropriate.")
 
         logging.debug('slapp called with query ' + query)
         await add_to_queue(ctx, 'slapp')
@@ -511,10 +512,10 @@ class SlappCommands(commands.Cog):
                     team_awards = []
                     for r in module_autoseed_list[team_name]:
                         if r.matched_players_len == 0:
-                            p = Player(names=[r.query or UNKNOWN_PLAYER], sources=r.sources.keys())
+                            p = Player(names=[Name(value=r.query or UNKNOWN_PLAYER, sources=r.sources.keys())])
                             pass
                         elif r.matched_players_len > 1:
-                            p = Player(names=[r.query or UNKNOWN_PLAYER], sources=r.sources.keys())
+                            p = Player(names=[Name(value=r.query or UNKNOWN_PLAYER, sources=r.sources.keys())])
                             message += f"Too many matches for player {r.query} 😔 " \
                                        f"({r.matched_players_len=})\n"
                         else:
@@ -770,7 +771,7 @@ def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                     resolved_old_teams = [wrap_in_backticks(old_t.__str__()) for old_t in resolved_old_teams]
 
                 old_teams += join("\n", resolved_old_teams)
-                old_teams = truncate(old_teams, 1000, "…\n")
+                old_teams = truncate(old_teams, 1000, "…\n") + "\n"
             else:
                 old_teams = ''
 
@@ -801,7 +802,6 @@ def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                             f'({twitter_profile.uri})\n'
 
             player_sources: List[UUID] = p.sources
-            player_sources.reverse()  # Reverse so last added source is first ...
             player_source_names: List[str] = []
             for source in player_sources:
                 from slapp_py.core_classes.builtins import BuiltinSource
@@ -886,7 +886,7 @@ def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                     cached_response.matched_players.append(p)
                     cached_response.matched_teams.clear()
                     reacts[emoji_num] = cached_response
-                    additional_info = f"\n React {emoji_num} for more\n"
+                    additional_info = f"\n More info: React {emoji_num}\n"
                 else:
                     additional_info = f"\n More info: {COMMAND_PREFIX}full {p.guid}\n"
 

@@ -5,7 +5,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Tuple
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, quote
 
 import requests
 from discord.ext import commands
@@ -77,6 +77,7 @@ class SendouCommands(commands.Cog):
                 message += "\n\n"
 
             message += "\n" + "<https://sendou.ink/builds?weapon=" + quote_plus(resolved_weapon) + ">"
+            message += "\n" + "<https://splatoonwiki.org/wiki/" + quote(resolved_weapon) + ">"
             self.sendou_cache[resolved_weapon] = (datetime.utcnow(), message)
 
         else:
@@ -95,7 +96,7 @@ def ability_to_emoji(ability: str) -> str:
         LAST_DITCH_EFFORT, MAIN_POWER_UP, NINJA_SQUID, OBJECT_SHREDDER, \
         OPENING_GAMBIT, QUICK_RESPAWN, QUICK_SUPER_JUMP, RESPAWN_PUNISHER, \
         RUN_SPEED_UP, SPECIAL_CHARGE_UP, SPECIAL_POWER_UP, SPECIAL_SAVER, \
-        STEALTH_JUMP, SUB_POWER_UP, SWIM_SPEED_UP, TENACITY, THERMAL_INK
+        STEALTH_JUMP, SUB_POWER_UP, SWIM_SPEED_UP, TENACITY, THERMAL_INK, UNKNOWN_ABILITY
 
     switch = {
         "AD": ABILITY_DOUBLER,
@@ -124,5 +125,6 @@ def ability_to_emoji(ability: str) -> str:
         "SSU": SWIM_SPEED_UP,
         "T": TENACITY,
         "TI": THERMAL_INK,
+        "UNKNOWN": UNKNOWN_ABILITY,
     }
     return switch.get(ability, ability)

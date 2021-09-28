@@ -63,11 +63,13 @@ FOOTER_PHRASES = [
     "PIZZA TIME! ",
     "I miss Flounder Heights. ",
     "Now with less lag! ",
+    "Now with more lag! ",
 
     # Internet memes and other game references
     "Other... games...? ",
     "Peace was never an option. 🔪 ",
     "BINGO! ",
+    "WHOA WHOA WHOA WHOA! ",
     "*You hear Megalovania playing off in the distance* ",
     "Sus. ",
     "I'll have two number 9s, a number 6 with extra dip, a number 7, two number 45s, one with cheese, and a large soda. ",
@@ -86,12 +88,15 @@ FOOTER_PHRASES = [
     "I fancy some chimkin. ",
     "[Gandalf Europop Nod] ",
     "Hello Human. ",
+    "Kris, get the banana. ",
+    "I am 4 parallel universes and a half A press ahead of you. ",
+    "Beware the uprising of grandmas. "
 
     # TV, Film, and Music references
     "Orange is the new black. ",
     "Let's go to the Winchester, have a nice cold pint, and wait for this all to blow over. ",
     "SSWWAAAAAANN 🦢 ",
-    "Check out 'is 'arse 🐴 ",
+    "Check out 'is 'orse 🐴 ",
     "Did you take the red pill or the blue pill? ",
     "42. ",
     "We're only human after all. ",
@@ -107,6 +112,9 @@ FOOTER_PHRASES = [
     "I'm high on believing! That you're in love with me! ",
     "Gotta a one-way ticket to hell and back! ",
     "You'll never know, dear, how much I love you. ",
+    "I'm sorry, Dave, but I'm afraid I can't do that. ",
+    "We're off to see the wizard! ",
+    "You're gonna need a bigger boat. ",
 
     # Streamer parodies (YouTubers and Twitch)
     "We BOUNCE THAT BOI ",

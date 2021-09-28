@@ -37,6 +37,7 @@ You must also set the relevant env values for [SlappPy](https://github.com/kjhf/
   * `. GrabSplatTag.bat`
   
 THEN
+* With Docker Desktop running,
 * `docker build --no-cache --pull --tag="slate.azurecr.io/dola:latest" -f Dockerfile .`
 
 ### Test or run with 
