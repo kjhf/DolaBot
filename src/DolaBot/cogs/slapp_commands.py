@@ -1,4 +1,5 @@
 """Slapp commands cog."""
+import asyncio
 import copy
 import io
 import logging
@@ -459,6 +460,8 @@ class SlappCommands(commands.Cog):
 
                 if ctx and builder:
                     last_message_sent = await ctx.send(embed=builder)
+                    # Let other async processes do their things
+                    await asyncio.sleep(1)
 
                 if len(removed_fields):
                     message += 1
@@ -651,6 +654,7 @@ class SlappCommands(commands.Cog):
 
             if isinstance(ctx, Context):
                 await ctx.message.add_reaction(TICK)
+                await asyncio.sleep(1)
 
             if description.startswith('predict_'):
                 if success_message != "OK":

@@ -8,6 +8,8 @@ import requests
 from discord.ext import commands
 from discord.ext.commands import Context
 
+from DolaBot.constants.emojis import EEVEE
+
 IMAGE_FORMATS = ["image/png", "image/jpeg", "image/jpg"]
 
 
@@ -16,6 +18,14 @@ class MemeCommands(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+
+    @commands.command(
+        name='slap',
+        description='oops',
+        pass_ctx=True
+    )
+    async def slap(self, ctx: Context):
+        await ctx.message.add_reaction(EEVEE)
 
     @commands.command(
         name='jpg',

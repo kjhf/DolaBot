@@ -9,9 +9,20 @@ CROWN = '👑'
 RUNNING = '🏃'
 TURTLE = '🐢'
 TICK = '✅'
+EEVEE = '<a:eevee_slap:895391059985715241>'
 NUMBERS_KEY_CAPS = ["{}\N{COMBINING ENCLOSING KEYCAP}".format(num) for num in range(0, 10)]
 NUMBERS_KEY_CAPS.append("🔟")
-NUMBERS_KEY_CAPS.append("*️⃣")
+# Big thank you to GabrielDoddOfficialYT -- https://emoji.gg/user/436716390246776833
+NUMBERS_KEY_CAPS.append("<:keycap_11:895381504023199825>")
+NUMBERS_KEY_CAPS.append("<:keycap_12:895381503977087026>")
+NUMBERS_KEY_CAPS.append("<:keycap_13:895381504048386078>")
+NUMBERS_KEY_CAPS.append("<:keycap_14:895381504467824691>")
+NUMBERS_KEY_CAPS.append("<:keycap_15:895381504560095322>")
+NUMBERS_KEY_CAPS.append("<:keycap_16:895381504505557032>")
+NUMBERS_KEY_CAPS.append("<:keycap_17:895381504576864296>")
+NUMBERS_KEY_CAPS.append("<:keycap_18:895381504983719937>")
+NUMBERS_KEY_CAPS.append("<:keycap_19:895381504476196864>")
+NUMBERS_KEY_CAPS.append("<:keycap_20:895381504149041225>")
 
 # Abilities
 ABILITY_DOUBLER = "<:AbilityDoubler:841052609648525382>"

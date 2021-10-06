@@ -88,9 +88,12 @@ FOOTER_PHRASES = [
     "I fancy some chimkin. ",
     "[Gandalf Europop Nod] ",
     "Hello Human. ",
-    "Kris, get the banana. ",
+    "Kris, get the banana. 🍌 ",
     "I am 4 parallel universes and a half A press ahead of you. ",
-    "Beware the uprising of grandmas. "
+    "Beware the uprising of grandmas. ",
+    "I wanna be the very best! ",
+    "Everyday, I imagine a future where I can be with you. ",
+    "OOPS! My bad! ",
 
     # TV, Film, and Music references
     "Orange is the new black. ",
@@ -115,6 +118,8 @@ FOOTER_PHRASES = [
     "I'm sorry, Dave, but I'm afraid I can't do that. ",
     "We're off to see the wizard! ",
     "You're gonna need a bigger boat. ",
+    "Daddy... daddy coooool. ",
+    "It's a kinda magic. ",
 
     # Streamer parodies (YouTubers and Twitch)
     "We BOUNCE THAT BOI ",
