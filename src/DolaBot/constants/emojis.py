@@ -10,7 +10,7 @@ RUNNING = '🏃'
 TURTLE = '🐢'
 TICK = '✅'
 EEVEE = '<a:eevee_slap:895391059985715241>'
-NUMBERS_KEY_CAPS = ["{}\N{COMBINING ENCLOSING KEYCAP}".format(num) for num in range(0, 10)]
+NUMBERS_KEY_CAPS = ["{}\N{COMBINING ENCLOSING KEYCAP}".format(num) for num in range(1, 10)]  # Skip 0
 NUMBERS_KEY_CAPS.append("🔟")
 # Big thank you to GabrielDoddOfficialYT -- https://emoji.gg/user/436716390246776833
 NUMBERS_KEY_CAPS.append("<:keycap_11:895381504023199825>")

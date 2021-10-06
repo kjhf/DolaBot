@@ -862,10 +862,11 @@ def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                                       value=truncate(', '.join(p.weapons), 1023, "…"),
                                       inline=False)
 
-                clout_message = p.skill.message
-                builder.add_field(name='    Clout:',
-                                  value=clout_message,
-                                  inline=False)
+                if not p.skill.is_default:
+                    clout_message = p.skill.message
+                    builder.add_field(name='    Clout:',
+                                      value=clout_message,
+                                      inline=False)
 
                 if len(player_sources):
                     for source_batch in range(0, 15):
@@ -990,9 +991,10 @@ def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                 player_skills = [(player, player.skill.clout) for player in players_in_team]
                 if player_skills:
                     best_player = max(player_skills, key=itemgetter(1))[0]
-                    builder.add_field(name='    Best player in the team by clout:',
-                                      value=truncate(best_player.name.value, 500, "…") + ": " + best_player.skill.message,
-                                      inline=False)
+                    if not best_player.skill.is_default:
+                        builder.add_field(name='    Best player in the team by clout:',
+                                          value=truncate(best_player.name.value, 500, "…") + ": " + best_player.skill.message,
+                                          inline=False)
 
                 builder.add_field(name='\tSources:',
                                   value=truncate('_' + team_sources + '_', 1023, "…_"),
