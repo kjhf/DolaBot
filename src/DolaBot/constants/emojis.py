@@ -5,11 +5,11 @@ TWITCH = '<:twitch:810346162023432213>'
 TWITTER = '<:twitter:810346162418614312>'
 LOW_INK = '<:LowInk:869389316881809438>'
 TROPHY = '🏆'
-CROWN = '👑'
 RUNNING = '🏃'
 TURTLE = '🐢'
 TICK = '✅'
 EEVEE = '<a:eevee_slap:895391059985715241>'
+TOP_500 = '<:Top500:896488842977230889>'
 NUMBERS_KEY_CAPS = ["{}\N{COMBINING ENCLOSING KEYCAP}".format(num) for num in range(1, 10)]  # Skip 0
 NUMBERS_KEY_CAPS.append("🔟")
 # Big thank you to GabrielDoddOfficialYT -- https://emoji.gg/user/436716390246776833

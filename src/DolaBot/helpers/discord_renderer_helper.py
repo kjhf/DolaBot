@@ -1,4 +1,9 @@
 def wrap_in_backticks(string: str) -> str:
+    """
+    Wrap the string in backticks.
+    If the string contains an `, it is wrapped in ```.
+    Otherwise, only one ` is used either side.
+    """
     if '`' in string:
         string = f"```{string}```"
     else:
@@ -7,6 +12,11 @@ def wrap_in_backticks(string: str) -> str:
 
 
 def safe_backticks(string: str) -> str:
+    """
+    Wrap the string in backticks if and ony if it requires it.
+    If the string contains an `, it is wrapped in ```.
+    If the string contains an _ or *, it is wrapped in `.
+    """
     if '`' in string:
         string = f"```{string}```"
     elif '_' in string or '*' in string:

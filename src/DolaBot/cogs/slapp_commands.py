@@ -29,7 +29,7 @@ from slapp_py.slapp_runner.slapp_response_object import SlappResponseObject
 
 from DolaBot.constants import emojis
 from DolaBot.constants.bot_constants import COMMAND_PREFIX
-from DolaBot.constants.emojis import CROWN, TROPHY, TICK, TURTLE, RUNNING, LOW_INK, NUMBERS_KEY_CAPS
+from DolaBot.constants.emojis import TOP_500, TROPHY, TICK, TURTLE, RUNNING, LOW_INK, NUMBERS_KEY_CAPS
 from DolaBot.constants.footer_phrases import get_random_footer_phrase
 from DolaBot.helpers.embed_helper import to_embed
 from DolaBot.helpers.processed_slapp_object import ProcessedSlappObject
@@ -112,7 +112,7 @@ async def handle_html(ctx: Optional[SupportsSend], description: str, response: O
             player_skills = [player.skill for player in team_players]
             player_skills.sort(reverse=True)
             awards = TROPHY * len({award for award_line in team_awards for award in award_line})
-            awards += CROWN * len([player for player in team_players if player.top500])
+            awards += TOP_500 * len([player for player in team_players if player.top500])
             (_, _), (max_clout, max_confidence) = Skill.team_clout(player_skills)
             teams_by_clout.append(
                 (team_name,
@@ -530,7 +530,7 @@ class SlappCommands(commands.Cog):
                     player_skills = [player.skill for player in team_players]
                     player_skills.sort(reverse=True)
                     awards = TROPHY * len({award for award_line in team_awards for award in award_line})
-                    awards += CROWN * len([player for player in team_players if player.top500])
+                    awards += TOP_500 * len([player for player in team_players if player.top500])
                     (_, _), (max_clout, max_confidence) = Skill.team_clout(player_skills)
                     teams_by_clout.append(
                         (team_name,
@@ -818,7 +818,7 @@ def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                     else:
                         player_source_names.append(name)
             player_sources: List[str] = list(map(lambda s: attempt_link_source(s), player_source_names))
-            top500 = (CROWN + " ") if p.top500 else ''
+            top500 = (TOP_500 + " ") if p.top500 else ''
             country_flag = p.country_flag + ' ' if p.country_flag else ''
             notable_results = r.get_first_placements(p)
             won_low_ink = r.placement_is_winning_low_ink(r.best_low_ink_placement(p))
@@ -830,18 +830,18 @@ def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
             if r.matched_players_len == 1 and r.matched_teams_len < 14:
                 field_body = f'{other_names}'
                 builder.add_field(name=field_head,
-                                  value=truncate(field_body, 1023, "…") or "(Nothing else to say)",
+                                  value=truncate(field_body, 1023, "…") or "(No other names)",
                                   inline=False)
 
                 if current_team or old_teams:
                     field_body = f'{current_team}{old_teams}'
-                    builder.add_field(name='    Teams:',
+                    builder.add_field(name='Teams:',
                                       value=truncate(field_body, 1023, "…") or "(Nothing else to say)",
                                       inline=False)
 
                 if twitch or twitter or battlefy or discord:
                     field_body = f'{twitch}{twitter}{battlefy}{discord}'
-                    builder.add_field(name='    Socials:',
+                    builder.add_field(name='Socials:',
                                       value=truncate(field_body, 1023, "…") or "(Nothing else to say)",
                                       inline=False)
 
@@ -853,18 +853,18 @@ def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                     for win in notable_results:
                         notable_results_str += TROPHY + ' Won ' + win + '\n'
 
-                    builder.add_field(name='    Notable Wins:',
+                    builder.add_field(name='Notable Wins:',
                                       value=truncate(notable_results_str, 1023, "…"),
                                       inline=False)
 
                 if len(p.weapons):
-                    builder.add_field(name='    Weapons:',
+                    builder.add_field(name='Weapons:',
                                       value=truncate(', '.join(p.weapons), 1023, "…"),
                                       inline=False)
 
                 if not p.skill.is_default:
                     clout_message = p.skill.message
-                    builder.add_field(name='    Clout:',
+                    builder.add_field(name='Clout:',
                                       value=clout_message,
                                       inline=False)
 
@@ -875,12 +875,15 @@ def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                         for j in range(0, min(sources_count, 6)):
                             value += player_sources[j].__str__() + '\n'
 
-                        builder.add_field(name='    ' + f'Sources ({(source_batch + 1)}):',
+                        player_sources = player_sources[min(sources_count, 7):]
+
+                        no_more = len(player_sources) <= 0
+                        only_source = no_more and source_batch == 0
+                        sources_text = f'Sources:' if only_source else f'Sources ({(source_batch + 1)}):'
+                        builder.add_field(name=sources_text,
                                           value=truncate(value, 1023, "…"),
                                           inline=False)
-
-                        player_sources = player_sources[min(sources_count, 7):]
-                        if len(player_sources) <= 0:
+                        if no_more:
                             break
 
             else:
@@ -958,6 +961,12 @@ def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
 
             # If there's just the one matched team, move the sources to the next field.
             if r.matched_teams_len == 1:
+                # Show the team's tags
+                if len(t.clan_tags) > 0:
+                    builder.add_field(name='Tags:',
+                                      value=", ".join([safe_backticks(tag.value) for tag in t.clan_tags]),
+                                      inline=False)
+
                 # Add in emoji reacts
                 for j, p_str in enumerate(player_strings):
                     if len(reacts) < len(NUMBERS_KEY_CAPS):
@@ -984,7 +993,7 @@ def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                         clout_message = f"I rate the current team's clout between {min_clout} ({min_conf}% sure) " \
                                         f"and {max_clout} ({max_conf}% sure)"
 
-                    builder.add_field(name='    Clout:',
+                    builder.add_field(name='Clout:',
                                       value=clout_message,
                                       inline=False)
 
@@ -992,15 +1001,15 @@ def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                 if player_skills:
                     best_player = max(player_skills, key=itemgetter(1))[0]
                     if not best_player.skill.is_default:
-                        builder.add_field(name='    Best player in the team by clout:',
+                        builder.add_field(name='Best player in the team by clout:',
                                           value=truncate(best_player.name.value, 500, "…") + ": " + best_player.skill.message,
                                           inline=False)
 
-                builder.add_field(name='\tSources:',
+                builder.add_field(name='Sources:',
                                   value=truncate('_' + team_sources + '_', 1023, "…_"),
                                   inline=False)
 
-                builder.add_field(name='\tSlapp Id:',
+                builder.add_field(name='Slapp Id:',
                                   value=t.guid.__str__(),
                                   inline=False)
             else:
