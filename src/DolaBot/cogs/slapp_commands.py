@@ -29,7 +29,7 @@ from slapp_py.slapp_runner.slapp_response_object import SlappResponseObject
 
 from DolaBot.constants import emojis
 from DolaBot.constants.bot_constants import COMMAND_PREFIX
-from DolaBot.constants.emojis import TOP_500, TROPHY, TICK, TURTLE, RUNNING, LOW_INK, NUMBERS_KEY_CAPS
+from DolaBot.constants.emojis import TOP_500, TROPHY, TICK, TURTLE, RUNNING, LOW_INK, NUMBERS_KEY_CAPS, TYPING
 from DolaBot.constants.footer_phrases import get_random_footer_phrase
 from DolaBot.helpers.embed_helper import to_embed
 from DolaBot.helpers.processed_slapp_object import ProcessedSlappObject
@@ -391,7 +391,7 @@ class SlappCommands(commands.Cog):
 
         logging.debug('slapp called with query ' + query)
         await add_to_queue(ctx, 'slapp')
-        await query_slapp(query)
+        await query_slapp(query, limit=20)
 
     @commands.command(
         name='Slapp (Full description)',
@@ -424,7 +424,7 @@ class SlappCommands(commands.Cog):
     async def send_slapp(ctx: SupportsSend, success_message: str, response: SlappResponseObject):
         if success_message == "OK":
             try:
-                processed = process_slapp(response)
+                processed = await process_slapp(response)
             except Exception as e:
                 if ctx:
                     await ctx.send(content=f'Something went wrong processing the result from Slapp. Blame Slate. 😒🤔 '
@@ -650,10 +650,11 @@ class SlappCommands(commands.Cog):
         elif len(slapp_ctx_queue) == 0:
             logging.warning(f"receive_slapp_response but queue is empty. Discarding result: {success_message=}, {response=}")
         else:
+            send_tick = False
             ctx, description = slapp_ctx_queue.popleft()
 
             if isinstance(ctx, Context):
-                await ctx.message.add_reaction(TICK)
+                await ctx.message.add_reaction(TYPING)
                 await asyncio.sleep(1)
 
             if description.startswith('predict_'):
@@ -664,6 +665,7 @@ class SlappCommands(commands.Cog):
                         response=SlappResponseObject(response))
                 else:
                     await SlappCommands.handle_predict(ctx, description, response)
+                send_tick = True
             elif description.startswith('autoseed'):
                 if success_message != "OK":
                     await SlappCommands.send_slapp(
@@ -683,6 +685,7 @@ class SlappCommands(commands.Cog):
                 if description.startswith("autoseed_end"):
                     await SlappCommands.handle_autoseed(ctx, description, None)
                     slapp_ctx_queue.popleft()
+                    send_tick = True
             elif description.startswith('html'):
                 if success_message != "OK":
                     await SlappCommands.send_slapp(
@@ -702,19 +705,25 @@ class SlappCommands(commands.Cog):
                 if description.startswith("html_end"):
                     await handle_html(ctx, description, None)
                     slapp_ctx_queue.popleft()
+                    send_tick = True
 
             else:
                 await SlappCommands.send_slapp(
                     ctx=ctx,
                     success_message=success_message,
                     response=SlappResponseObject(response))
+                send_tick = True
+
+            if isinstance(ctx, Context) and send_tick:
+                await ctx.message.add_reaction(TICK)
+                await asyncio.sleep(1)
 
     @staticmethod
     def get_latest_ipl():
         return get_tournament_ids('inkling-performance-labs')[0]
 
 
-def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
+async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
     if r.has_matched_players and r.has_matched_teams:
         title = f"Found {r.matched_players_len} player{('' if (r.matched_players_len == 1) else 's')} " \
                 f"and {r.matched_teams_len} team{('' if (r.matched_teams_len == 1) else 's')}!"
@@ -917,6 +926,7 @@ def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                     field_body += additional_info
 
                 builder.add_field(name=field_head, value=field_body, inline=False)
+                await asyncio.sleep(1)  # yield
 
     if r.has_matched_teams:
         separator = ',\n' if r.matched_teams_len == 1 else ', '
@@ -1037,12 +1047,14 @@ def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                 builder.add_field(name=truncate(t.__str__(), 256, "") or "Unnamed Team",
                                   value=truncate(field_body, 1023, "…_"),
                                   inline=False)
+                await asyncio.sleep(1)  # yield
 
     builder.set_footer(
         text=get_random_footer_phrase() + (
             f'Only the first {MAX_RESULTS} results are shown for players and teams.' if r.show_limited else ''
         ),
         icon_url="https://media.discordapp.net/attachments/471361750986522647/758104388824072253/icon.png")
+    await asyncio.sleep(1)  # yield
     return ProcessedSlappObject(builder, embed_colour, reacts)
 
 
