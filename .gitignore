@@ -3,6 +3,7 @@ Notes.md
 .env
 *.bat
 bin/
+tests/testdata/*.txt
 
 # Editors
 .vscode/
