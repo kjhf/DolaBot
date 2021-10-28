@@ -9,6 +9,7 @@ RUNNING = '🏃'
 TURTLE = '🐢'
 TYPING = '<a:typing:897094396502224916>'
 TICK = '✅'
+CROSS = '❌'
 EEVEE = '<a:eevee_slap:895391059985715241>'
 TOP_500 = '<:Top500:896488842977230889>'
 NUMBERS_KEY_CAPS = ["{}\N{COMBINING ENCLOSING KEYCAP}".format(num) for num in range(1, 10)]  # Skip 0

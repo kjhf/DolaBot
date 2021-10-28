@@ -6,6 +6,8 @@ You have been warned :)
 """
 import random
 
+from DolaBot.constants.bot_constants import COMMAND_PREFIX
+from DolaBot.constants.emojis import EEVEE
 from DolaBot.helpers import weapons
 
 
@@ -13,6 +15,7 @@ def get_random_footer_phrase() -> str:
     return random\
         .choice(FOOTER_PHRASES)\
         .replace('%weapon%', weapons.get_random_weapon())
+
 
 FOOTER_PHRASES = [
     # General and for the morale
@@ -34,9 +37,13 @@ FOOTER_PHRASES = [
     "Go to bed! ",
     "Just ignore when I used to tell you how long a query took. I lied about it. ",
     "You can join the dev server at https://discord.gg/wZZv2Cr",
-    "Did you know that I have a jpg function? ",
+    f"Did you know that I have a {COMMAND_PREFIX}jpg function? ",
     "The answer is... yes, that one. ",
     "The answer is... no. ",
+    "You're looking very beautiful today. ",
+    "You're looking very dapper today. ",
+    " ✨ JACKPOT WINNER! ✨ ",
+    EEVEE,
 
     # LGBT+
     "Be gay! Do crimes! ",
@@ -44,6 +51,8 @@ FOOTER_PHRASES = [
     "Imagine a computer program to be non-binary. Haha. ",
     "Trans rights! ",
     "Ewww cooties. ",
+    "Skirt go spinny. ",
+    "Programming socks ON. ",
 
     # Splatoon and tournament shout-outs
     "You should Step Up, Europe. ",
@@ -64,6 +73,7 @@ FOOTER_PHRASES = [
     "I miss Flounder Heights. ",
     "Now with less lag! ",
     "Now with more lag! ",
+    "Slapp features more than 30,000 player entries! ",
 
     # Internet memes and other game references
     "Other... games...? ",
@@ -88,12 +98,15 @@ FOOTER_PHRASES = [
     "I fancy some chimkin. ",
     "[Gandalf Europop Nod] ",
     "Hello Human. ",
-    "Kris, get the banana. 🍌 ",
+    "Kris, get the banana! 🍌 ",
     "I am 4 parallel universes and a half A press ahead of you. ",
     "Beware the uprising of grandmas. ",
     "I wanna be the very best! ",
     "Everyday, I imagine a future where I can be with you. ",
     "OOPS! My bad! ",
+    "It's Pikachu! ",
+    "Checkmate ♔ ",
+    "Don't speak his name! ..... ",
 
     # TV, Film, and Music references
     "Orange is the new black. ",
@@ -120,6 +133,7 @@ FOOTER_PHRASES = [
     "You're gonna need a bigger boat. ",
     "Daddy... daddy coooool. ",
     "It's a kinda magic. ",
+    "Spider-pig, spider-pig, does whatever a spider-pig does... ",
 
     # Streamer parodies (YouTubers and Twitch)
     "We BOUNCE THAT BOI ",

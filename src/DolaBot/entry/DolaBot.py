@@ -4,12 +4,11 @@ import os
 import sys
 
 import discord
-from discord import client, RawReactionActionEvent
+from discord import RawReactionActionEvent
 from discord.ext import commands
-from discord.ext.commands import Bot, CommandNotFound, UserInputError, MissingRequiredArgument, Context, bot
+from discord.ext.commands import Bot, CommandNotFound, UserInputError, MissingRequiredArgument, Context
 
 from DolaBot.helpers.channel_logger import ChannelLogHandler
-from slapp_py.slapp_runner.slapipes import initialise_slapp
 
 from DolaBot.cogs.bot_util_commands import BotUtilCommands
 from DolaBot.cogs.meme_commands import MemeCommands
@@ -37,12 +36,14 @@ class DolaBot(Bot):
         self.try_add_cog(MemeCommands)
         self.try_add_cog(SendouCommands)
         self.try_add_cog(ServerCommands)
-        self.try_add_cog(SlappCommands)
+        self.slapp_commands: SlappCommands = self.try_add_cog(SlappCommands)
         self.try_add_cog(SplatoonCommands)
 
     def try_add_cog(self, cog: commands.cog):
         try:
-            self.add_cog(cog(self))
+            new_cog = cog(self)
+            self.add_cog(new_cog)
+            return new_cog
         except Exception as e:
             logging.error(f"Failed to load {cog=}: {e=}")
 
@@ -79,13 +80,13 @@ class DolaBot(Bot):
 
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent):
         if payload.user_id != self.user.id:
-            await SlappCommands.handle_reaction(self, payload)
+            await self.slapp_commands.handle_reaction(payload)
 
     def do_the_thing(self):
         loop = asyncio.get_event_loop()
         loop.run_until_complete(
             asyncio.gather(
-                initialise_slapp(SlappCommands.receive_slapp_response),
+                self.slapp_commands.initialise_slapp(),
                 self.start(os.getenv("BOT_TOKEN"))
             )
         )

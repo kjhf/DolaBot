@@ -1,11 +1,10 @@
 """Slapp commands cog."""
 import asyncio
-import copy
 import io
 import logging
 import traceback
 from collections import namedtuple, deque, OrderedDict
-from typing import Optional, List, Tuple, Dict, Deque, Union
+from typing import Optional, List, Tuple, Dict, Deque, Union, Coroutine
 
 from DolaBot.helpers.discord_renderer_helper import safe_backticks, close_backticks_if_unclosed, wrap_in_backticks
 from DolaBot.helpers.supports_send import SupportsSend
@@ -24,12 +23,12 @@ from discord.ext.commands import Context, Bot
 from slapp_py.helpers.sources_helper import attempt_link_source
 from slapp_py.misc.download_from_battlefy_result import download_from_battlefy
 from slapp_py.misc.models.battlefy_team import BattlefyTeam
-from slapp_py.slapp_runner.slapipes import query_slapp, slapp_describe, MAX_RESULTS
+from slapp_py.slapp_runner.slapipes import MAX_RESULTS, SlapPipe
 from slapp_py.slapp_runner.slapp_response_object import SlappResponseObject
 
 from DolaBot.constants import emojis
 from DolaBot.constants.bot_constants import COMMAND_PREFIX
-from DolaBot.constants.emojis import TOP_500, TROPHY, TICK, TURTLE, RUNNING, LOW_INK, NUMBERS_KEY_CAPS, TYPING
+from DolaBot.constants.emojis import TOP_500, TROPHY, TICK, TURTLE, RUNNING, LOW_INK, NUMBERS_KEY_CAPS, TYPING, CROSS
 from DolaBot.constants.footer_phrases import get_random_footer_phrase
 from DolaBot.helpers.embed_helper import to_embed
 from DolaBot.helpers.processed_slapp_object import ProcessedSlappObject
@@ -41,7 +40,7 @@ from uuid import UUID
 
 SlappQueueItem = namedtuple('SlappQueueItem', ('SupportsSend', 'str'))
 slapp_ctx_queue: Deque[SlappQueueItem] = deque()
-slapp_reacts_queue: OrderedDict[str, Dict[str, SlappResponseObject]] = OrderedDict()
+slapp_reacts_queue: OrderedDict[str, Dict[str, Union[Player, Team]]] = OrderedDict()
 module_autoseed_list: Optional[Dict[str, List[SlappResponseObject]]] = dict()
 module_html_list: Optional[Dict[str, List[SlappResponseObject]]] = dict()
 module_predict_team_1: Optional[dict] = None
@@ -53,22 +52,6 @@ async def add_to_queue(ctx: Union[None, SupportsSend, Context], description: str
     if isinstance(ctx, Context):
         await ctx.message.add_reaction(RUNNING if slapp_caching_finished else TURTLE)
     slapp_ctx_queue.append(SlappQueueItem(ctx, description))
-
-
-async def begin_slapp_html(ctx, tournament: List[dict]):
-    verification_message, players_to_queue = SlappCommands.prepare_bulk_slapp(tournament)
-
-    # Do the autoseed list
-    await add_to_queue(None, 'html_start')
-    for pair in players_to_queue:
-        await add_to_queue(None, 'html:' + pair[0])
-        await query_slapp(pair[1])
-    await add_to_queue(ctx, 'html_end')
-
-    if verification_message:
-        await ctx.send(verification_message)
-
-    # Finished in handle_html
 
 
 async def handle_html(ctx: Optional[SupportsSend], description: str, response: Optional[dict]):
@@ -129,16 +112,16 @@ async def handle_html(ctx: Optional[SupportsSend], description: str, response: O
 
     # Free free to ignore this LOL
     row_count = 1
-    HTML_BEGIN = f"""<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><link type="text/css" rel="stylesheet" href="resources/sheet.css"><style type="text/css">.ritz .waffle a {{ color: inherit; }}.ritz .waffle .s8{{background-color:#9900ff;text-align:right;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s0{{background-color:#fce5cd;text-align:center;font-weight:bold;color:#000000;font-family:'Arial';font-size:14pt;vertical-align:middle;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s7{{background-color:#25c274;text-align:right;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s12{{background-color:#fbbc04;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s1{{background-color:#4a86e8;text-align:right;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s6{{background-color:#34a853;text-align:left;text-decoration:underline;-webkit-text-decoration-skip:none;text-decoration-skip-ink:none;color:#1155cc;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s2{{background-color:#34a853;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s3{{background-color:#ffffff;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s10{{background-color:#9900ff;text-align:right;color:#000000;font-family:'docs-Roboto',Arial;font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s4{{background-color:#ffffff;text-align:center;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s5{{background-color:#00ff00;text-align:right;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s14{{background-color:#4285f4;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s13{{background-color:#ff6d01;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s9{{background-color:#ea4335;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s11{{background-color:#4a86e8;text-align:right;color:#000000;font-family:'docs-Roboto',Arial;font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}} .tooltip {{ position: relative;  display: inline-block;  border-bottom: 1px dotted black;}} .tooltip .tooltiptext {{visibility: hidden; background-color: black;  color: #fff;  text-align: center;  padding: 5px 0;  border-radius: 6px;  position: absolute;  z-index: 1;}} .tooltip:hover .tooltiptext {{visibility: visible;}}</style></head>\n<body><div class="ritz grid-container" dir="ltr"><table class="waffle" cellspacing="0" cellpadding="0"><thead><tr><th class="row-header freezebar-origin-ltr"></th><th id="810171351C0" style="width:30px;" class="column-headers-background">A</th><th id="810171351C1" style="width:170px;" class="column-headers-background">B</th><th id="810171351C2" style="width:150px;" class="column-headers-background">C</th><th id="810171351C3" style="width:150px;" class="column-headers-background">D</th><th id="810171351C4" style="width:150px;" class="column-headers-background">E</th><th id="810171351C5" style="width:150px;" class="column-headers-background">F</th><th id="810171351C6" style="width:150px;" class="column-headers-background">G</th><th id="810171351C7" style="width:150px;" class="column-headers-background">H</th><th id="810171351C8" style="width:150px;" class="column-headers-background">I</th><th id="810171351C9" style="width:150px;" class="column-headers-background">J</th><th id="810171351C10" style="width:150px;" class="column-headers-background">K</th><th id="810171351C11" style="width:150px;" class="column-headers-background">L</th><th id="810171351C12" style="width:150px;" class="column-headers-background">M</th><th id="810171351C13" style="width:150px;" class="column-headers-background">N</th><th id="810171351C14" style="width:150px;" class="column-headers-background">O</th><th id="810171351C15" style="width:150px;" class="column-headers-background">P</th><th id="810171351C16" style="width:150px;" class="column-headers-background">Q</th><th id="810171351C17" style="width:150px;" class="column-headers-background">R</th><th id="810171351C18" style="width:150px;" class="column-headers-background">S</th><th id="810171351C19" style="width:150px;" class="column-headers-background">T</th><th id="810171351C20" style="width:150px;" class="column-headers-background">U</th><th id="810171351C21" style="width:150px;" class="column-headers-background">V</th><th id="810171351C22" style="width:150px;" class="column-headers-background">W</th><th id="810171351C23" style="width:150px;" class="column-headers-background">X</th><th id="810171351C24" style="width:150px;" class="column-headers-background">Y</th><th id="810171351C25" style="width:150px;" class="column-headers-background">Z</th></tr></thead><tbody><tr style="height: 30px"><th id="810171351R0" style="height: 30px;" class="row-headers-background"><div class="row-header-wrapper" style="line-height: 30px">{row_count}</div></th><td class="s0" dir="ltr">#</td><td class="s0" dir="ltr">Team Name<br></td><td class="s0" dir="ltr">Player 1</td><td class="s0" dir="ltr">Player 2</td><td class="s0" dir="ltr">Player 3</td><td class="s0" dir="ltr">Player 4</td><td class="s0" dir="ltr">Player 5</td><td class="s0" dir="ltr">Player 6</td><td class="s0" dir="ltr">Player 7</td><td class="s0" dir="ltr">Player 8</td><td class="s0" dir="ltr">Last Updated</td><td class="s0" dir="ltr">Removed 1<br></td><td class="s0" dir="ltr">Removed 2<br></td><td class="s0" dir="ltr">Removed 3<br></td><td class="s0" dir="ltr">Removed 4<br></td><td class="s0" dir="ltr">Removed 5<br></td><td class="s0" dir="ltr">Removed 6<br></td><td class="s0" dir="ltr">Removed 7<br></td><td class="s0" dir="ltr">Removed 8<br></td><td class="s0" dir="ltr">Removed 9<br></td><td class="s0" dir="ltr">Removed 10<br></td><td class="s0" dir="ltr">Removed 11<br></td><td class="s0" dir="ltr">Removed 12<br></td><td class="s0" dir="ltr">Removed 13<br></td><td class="s0" dir="ltr">Removed 14<br></td><td class="s0" dir="ltr">Removed 15<br></td></tr>\n"""
-    HTML_END = """</tbody></table></div></body></html>"""
-    STYLE_GOOD = "s2"
-    STYLE_BANNED = "s9"
-    STYLE_NEEDS_CHECKING = "s12"
-    STYLE_EXCEPTION = "s14"
+    html_begin = f"""<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><link type="text/css" rel="stylesheet" href="resources/sheet.css"><style type="text/css">.ritz .waffle a {{ color: inherit; }}.ritz .waffle .s8{{background-color:#9900ff;text-align:right;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s0{{background-color:#fce5cd;text-align:center;font-weight:bold;color:#000000;font-family:'Arial';font-size:14pt;vertical-align:middle;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s7{{background-color:#25c274;text-align:right;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s12{{background-color:#fbbc04;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s1{{background-color:#4a86e8;text-align:right;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s6{{background-color:#34a853;text-align:left;text-decoration:underline;-webkit-text-decoration-skip:none;text-decoration-skip-ink:none;color:#1155cc;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s2{{background-color:#34a853;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s3{{background-color:#ffffff;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s10{{background-color:#9900ff;text-align:right;color:#000000;font-family:'docs-Roboto',Arial;font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s4{{background-color:#ffffff;text-align:center;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s5{{background-color:#00ff00;text-align:right;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s14{{background-color:#4285f4;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s13{{background-color:#ff6d01;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s9{{background-color:#ea4335;text-align:left;color:#000000;font-family:'Arial';font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}}.ritz .waffle .s11{{background-color:#4a86e8;text-align:right;color:#000000;font-family:'docs-Roboto',Arial;font-size:10pt;vertical-align:bottom;white-space:nowrap;direction:ltr;padding:2px 3px 2px 3px;}} .tooltip {{ position: relative;  display: inline-block;  border-bottom: 1px dotted black;}} .tooltip .tooltiptext {{visibility: hidden; background-color: black;  color: #fff;  text-align: center;  padding: 5px 0;  border-radius: 6px;  position: absolute;  z-index: 1;}} .tooltip:hover .tooltiptext {{visibility: visible;}}</style></head>\n<body><div class="ritz grid-container" dir="ltr"><table class="waffle" cellspacing="0" cellpadding="0"><thead><tr><th class="row-header freezebar-origin-ltr"></th><th id="810171351C0" style="width:30px;" class="column-headers-background">A</th><th id="810171351C1" style="width:170px;" class="column-headers-background">B</th><th id="810171351C2" style="width:150px;" class="column-headers-background">C</th><th id="810171351C3" style="width:150px;" class="column-headers-background">D</th><th id="810171351C4" style="width:150px;" class="column-headers-background">E</th><th id="810171351C5" style="width:150px;" class="column-headers-background">F</th><th id="810171351C6" style="width:150px;" class="column-headers-background">G</th><th id="810171351C7" style="width:150px;" class="column-headers-background">H</th><th id="810171351C8" style="width:150px;" class="column-headers-background">I</th><th id="810171351C9" style="width:150px;" class="column-headers-background">J</th><th id="810171351C10" style="width:150px;" class="column-headers-background">K</th><th id="810171351C11" style="width:150px;" class="column-headers-background">L</th><th id="810171351C12" style="width:150px;" class="column-headers-background">M</th><th id="810171351C13" style="width:150px;" class="column-headers-background">N</th><th id="810171351C14" style="width:150px;" class="column-headers-background">O</th><th id="810171351C15" style="width:150px;" class="column-headers-background">P</th><th id="810171351C16" style="width:150px;" class="column-headers-background">Q</th><th id="810171351C17" style="width:150px;" class="column-headers-background">R</th><th id="810171351C18" style="width:150px;" class="column-headers-background">S</th><th id="810171351C19" style="width:150px;" class="column-headers-background">T</th><th id="810171351C20" style="width:150px;" class="column-headers-background">U</th><th id="810171351C21" style="width:150px;" class="column-headers-background">V</th><th id="810171351C22" style="width:150px;" class="column-headers-background">W</th><th id="810171351C23" style="width:150px;" class="column-headers-background">X</th><th id="810171351C24" style="width:150px;" class="column-headers-background">Y</th><th id="810171351C25" style="width:150px;" class="column-headers-background">Z</th></tr></thead><tbody><tr style="height: 30px"><th id="810171351R0" style="height: 30px;" class="row-headers-background"><div class="row-header-wrapper" style="line-height: 30px">{row_count}</div></th><td class="s0" dir="ltr">#</td><td class="s0" dir="ltr">Team Name<br></td><td class="s0" dir="ltr">Player 1</td><td class="s0" dir="ltr">Player 2</td><td class="s0" dir="ltr">Player 3</td><td class="s0" dir="ltr">Player 4</td><td class="s0" dir="ltr">Player 5</td><td class="s0" dir="ltr">Player 6</td><td class="s0" dir="ltr">Player 7</td><td class="s0" dir="ltr">Player 8</td><td class="s0" dir="ltr">Last Updated</td><td class="s0" dir="ltr">Removed 1<br></td><td class="s0" dir="ltr">Removed 2<br></td><td class="s0" dir="ltr">Removed 3<br></td><td class="s0" dir="ltr">Removed 4<br></td><td class="s0" dir="ltr">Removed 5<br></td><td class="s0" dir="ltr">Removed 6<br></td><td class="s0" dir="ltr">Removed 7<br></td><td class="s0" dir="ltr">Removed 8<br></td><td class="s0" dir="ltr">Removed 9<br></td><td class="s0" dir="ltr">Removed 10<br></td><td class="s0" dir="ltr">Removed 11<br></td><td class="s0" dir="ltr">Removed 12<br></td><td class="s0" dir="ltr">Removed 13<br></td><td class="s0" dir="ltr">Removed 14<br></td><td class="s0" dir="ltr">Removed 15<br></td></tr>\n"""
+    html_end = """</tbody></table></div></body></html>"""
+    style_good = "s2"
+    style_banned = "s9"
+    style_needs_checking = "s12"
+    style_exception = "s14"
 
     # Order by clout for the team seed
     ordered = sorted(teams_by_clout, key=itemgetter(2), reverse=True)
-    output = HTML_BEGIN
+    output = html_begin
     for tup in teams_by_clout:
         team_name, team_players, max_clout, max_confidence, awards = tup
         row_count += 1
@@ -150,24 +133,24 @@ async def handle_html(ctx: Optional[SupportsSend], description: str, response: O
         player_output = ''
         player_styles = []
         for player in team_players:
-            style = STYLE_NEEDS_CHECKING
+            style = style_needs_checking
 
             r = team_players[player]
             best_div = r.get_best_division_for_player(player)
             low_ink_placements = r.get_low_ink_placements(player)
             best_li_placement = r.best_low_ink_placement(player)
             if r.placement_is_winning_low_ink(best_li_placement):
-                style = STYLE_BANNED
+                style = style_banned
             elif best_div.normalised_value == 4:
-                style = STYLE_EXCEPTION
+                style = style_exception
             elif best_div.normalised_value <= 3:
-                style = STYLE_BANNED
+                style = style_banned
             # Considering adding this, but if we're in December and the last result was at the beginning of the year,
             # or indeed years ago, then this wouldn't be a good indication.
             # elif best_li_placement is not None:
             #     style = STYLE_GOOD
             elif not best_div.is_unknown:
-                style = STYLE_GOOD
+                style = style_good
 
             player_styles.append(style)
             names = list(set([name.value for name in player.names if name and name.value]))
@@ -184,8 +167,8 @@ async def handle_html(ctx: Optional[SupportsSend], description: str, response: O
             player_detail += f"Teams: {join(', ', r.get_teams_for_player(player))} \n"
             player_output += f"""<td class="{style}" dir="ltr"><div class="tooltip">{player.name}<pre class="tooltiptext">{player_detail}</pre></div></td>\n"""
 
-        team_seed_colour = STYLE_GOOD if max_confidence > 70 else STYLE_NEEDS_CHECKING
-        team_name_colour = STYLE_GOOD if all(style == STYLE_GOOD for style in player_styles) else STYLE_NEEDS_CHECKING
+        team_seed_colour = style_good if max_confidence > 70 else style_needs_checking
+        team_name_colour = style_good if all(style == style_good for style in player_styles) else style_needs_checking
 
         team_seed = ordered.index(tup) + 1
         team_detail = f"Clout: {max_clout} ({max_confidence}% confidence) {awards}"
@@ -195,13 +178,21 @@ async def handle_html(ctx: Optional[SupportsSend], description: str, response: O
 
         output += """</tr>\n"""
 
-    output += HTML_END
+    output += html_end
     f = io.StringIO(output)
     await ctx.send(content="Here ya go! 🎈", file=File(fp=f, filename="Verifications.html"))
 
 
 class SlappCommands(commands.Cog):
     """A grouping of Slapp-related commands."""
+
+    def __init__(self, bot: Bot):
+        self.bot = bot
+        self.slappipe = SlapPipe()
+        self.restart_context = None
+
+    def initialise_slapp(self) -> Coroutine:
+        return self.slappipe.initialise_slapp(self.receive_slapp_response)
 
     @staticmethod
     def has_slapp_started():
@@ -215,25 +206,19 @@ class SlappCommands(commands.Cog):
     def get_slapp_queue_length():
         return len(slapp_ctx_queue)
 
-    @staticmethod
-    async def handle_reaction(bot: Bot, payload: RawReactionActionEvent):
-        channel = await bot.fetch_channel(payload.channel_id)
+    async def handle_reaction(self, payload: RawReactionActionEvent):
+        channel = await self.bot.fetch_channel(payload.channel_id)
         response = slapp_reacts_queue.get(payload.message_id, {}).get(payload.emoji.name)
 
         handled = False
         if response:
             logging.info(f"Reaction received matching message {payload.message_id=}, {payload.emoji.name=}")
-            if response.is_single_player:
+            if isinstance(response, Player) or isinstance(response, Team):
                 await add_to_queue(channel, "full")
-                await slapp_describe(response.single_player.guid)
-                handled = True
-            elif response.is_single_team:
-                await add_to_queue(channel, "full")
-                await slapp_describe(response.single_team.guid)
+                await self.slappipe.slapp_describe(str(response.guid))
                 handled = True
             else:
-                await channel.send(
-                    f"Something went wrong with handling the react: {response.matched_players_len=}, {response.matched_teams_len=}")
+                await channel.send(f"Something went wrong with handling the react: {response=}")
 
         if handled:
             slapp_reacts_queue[payload.message_id].pop(payload.emoji.name)
@@ -302,7 +287,7 @@ class SlappCommands(commands.Cog):
         await add_to_queue(None, 'autoseed_start')
         for pair in players_to_queue:
             await add_to_queue(None, 'autoseed:' + pair[0])
-            await query_slapp(pair[1])
+            await self.slappipe.query_slapp(pair[1])
         await add_to_queue(ctx, 'autoseed_end')
 
         if verification_message:
@@ -321,7 +306,7 @@ class SlappCommands(commands.Cog):
             return
 
         if not tourney_id:
-            tourney_id = self.get_latest_ipl()
+            tourney_id = SlappCommands.get_latest_ipl()
 
         tournament = list(download_from_battlefy(tourney_id, force=True))
         if isinstance(tournament, list) and len(tournament) == 1:
@@ -345,7 +330,7 @@ class SlappCommands(commands.Cog):
         verification_message: str = ""
 
         if do_all:
-            await begin_slapp_html(ctx, tournament)
+            await self.begin_slapp_html(ctx, tournament)
         else:
             team_slug = team_slug_or_name_or_confirmation
             for team in tournament:
@@ -366,12 +351,27 @@ class SlappCommands(commands.Cog):
                             continue
                         else:
                             await add_to_queue(ctx, 'verify')
-                            await query_slapp(player.user_slug)
+                            await self.slappipe.query_slapp(player.user_slug)
                 else:
                     continue
 
         if verification_message:
             await ctx.send(verification_message)
+
+    @commands.command(
+        name='restartslapp',
+        description="Restarts Slapp",
+        help=f'{COMMAND_PREFIX}restartslapp',
+        pass_ctx=True)
+    async def restartslapp(self, ctx):
+        import discord
+        # DolaPro role
+        has_perm = await ctx.bot.is_owner(ctx.author) or await discord.utils.get(ctx.author.roles, id=900869242767966228)
+        if has_perm:
+            await self._restart_slapp(ctx)
+            await ctx.message.add_reaction(TYPING)
+        else:
+            await ctx.send("Get a DolaPro to restart Slapp.")
 
     @commands.command(
         name='Slapp',
@@ -391,7 +391,7 @@ class SlappCommands(commands.Cog):
 
         logging.debug('slapp called with query ' + query)
         await add_to_queue(ctx, 'slapp')
-        await query_slapp(query, limit=20)
+        await self.slappipe.query_slapp(query, limit=20)
 
     @commands.command(
         name='Slapp (Full description)',
@@ -403,7 +403,7 @@ class SlappCommands(commands.Cog):
     async def full(self, ctx: Context, slapp_id: str):
         logging.info('full called with slapp_id ' + slapp_id)
         await add_to_queue(ctx, 'full')
-        await slapp_describe(slapp_id)
+        await self.slappipe.slapp_describe(slapp_id)
 
     @commands.command(
         name='Fight',
@@ -415,9 +415,9 @@ class SlappCommands(commands.Cog):
     async def predict(self, ctx: Context, slapp_id_team_1: str, slapp_id_team_2: str):
         logging.info(f'predict called with teams {slapp_id_team_1=} {slapp_id_team_2=}')
         await add_to_queue(ctx, 'predict_1')
-        await slapp_describe(slapp_id_team_1)
+        await self.slappipe.slapp_describe(slapp_id_team_1)
         await add_to_queue(ctx, 'predict_2')
-        await slapp_describe(slapp_id_team_2)
+        await self.slappipe.slapp_describe(slapp_id_team_2)
         # This comes back in the receive_slapp_response -> handle_predict
 
     @staticmethod
@@ -461,7 +461,7 @@ class SlappCommands(commands.Cog):
                 if ctx and builder:
                     last_message_sent = await ctx.send(embed=builder)
                     # Let other async processes do their things
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(0.001)  # 1ms yield
 
                 if len(removed_fields):
                     message += 1
@@ -635,18 +635,35 @@ class SlappCommands(commands.Cog):
 
             await ctx.send(message)
 
-    @staticmethod
-    async def receive_slapp_response(success_message: str, response: dict):
+    async def receive_slapp_response(self, success_message: str, response: dict):
         global slapp_started, slapp_caching_finished
 
         if success_message == "Caching task done.":
             slapp_caching_finished = True
             logging.info(f"ACK caching done.")
             return
+        elif success_message.startswith('Connection established.'):
+            if self.restart_context:
+                logging.info(f"Slapp connection re-established. {success_message=}, {response=}.")
+                await self.restart_context.add_reaction(TICK)
+                self.restart_context = None
+            else:
+                logging.info(f"Slapp connection established. {success_message=}.")
 
-        if not slapp_started:
-            logging.info(f"Slapp connection established. Discarding first result: {success_message=}, {response=}")
-            slapp_started = True
+            while len(slapp_ctx_queue):
+                ctx, description = slapp_ctx_queue.popleft()
+                if isinstance(ctx, Context):
+                    await ctx.message.add_reaction(CROSS)
+
+            if "0 players and 0 teams loaded" in success_message:
+                logging.error("Slapp did not load its database correctly.")
+                await self._restart_slapp(None)
+            else:
+                slapp_started = True
+        elif not slapp_started:
+            logging.error(f"Slapp is out-of-sync! Received unexpected message without a connection established message."
+                          f" Discarding result. {success_message=}, {response=}")
+            await self._restart_slapp(None)
         elif len(slapp_ctx_queue) == 0:
             logging.warning(f"receive_slapp_response but queue is empty. Discarding result: {success_message=}, {response=}")
         else:
@@ -655,7 +672,7 @@ class SlappCommands(commands.Cog):
 
             if isinstance(ctx, Context):
                 await ctx.message.add_reaction(TYPING)
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.001)  # 1ms yield
 
             if description.startswith('predict_'):
                 if success_message != "OK":
@@ -716,11 +733,34 @@ class SlappCommands(commands.Cog):
 
             if isinstance(ctx, Context) and send_tick:
                 await ctx.message.add_reaction(TICK)
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.001)  # 1ms yield
 
     @staticmethod
     def get_latest_ipl():
         return get_tournament_ids('inkling-performance-labs')[0]
+
+    async def _restart_slapp(self, ctx: Optional[Context]):
+        logging.warning("Restarting Slapp...")
+        self.slapp_started = False
+        self.restart_context = ctx
+        self.slappipe.kill_slapp()  # We started Slapp with keepOpen so this will restart
+        await asyncio.sleep(0.001)  # 1ms yield  # yield/wait for a bit
+        logging.info("..._restart_slapp continuing")
+
+    async def begin_slapp_html(self, ctx, tournament: List[dict]):
+        verification_message, players_to_queue = SlappCommands.prepare_bulk_slapp(tournament)
+
+        # Do the autoseed list
+        await add_to_queue(None, 'html_start')
+        for pair in players_to_queue:
+            await add_to_queue(None, 'html:' + pair[0])
+            await self.slappipe.query_slapp(pair[1])
+        await add_to_queue(ctx, 'html_end')
+
+        if verification_message:
+            await ctx.send(verification_message)
+
+        # Finished in handle_html
 
 
 async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
@@ -740,7 +780,7 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
 
     builder = to_embed('', colour=colour, title=title)
     embed_colour = colour
-    reacts: Dict[str, SlappResponseObject] = dict()
+    reacts: Dict[str, Union[Player, Team]] = dict()
 
     if r.has_matched_players:
         for i in range(0, MAX_RESULTS):
@@ -754,15 +794,13 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
             current_name = f"{names[0]}" if len(names) else "(Unnamed Player)"
             resolved_teams = r.get_teams_for_player(p)
 
+            current_team = None
             if r.is_single_player and resolved_teams:
-                emoji_num = NUMBERS_KEY_CAPS[len(reacts)]
-                cached_response = copy.deepcopy(r)
-                cached_response.matched_players.clear()
-                cached_response.matched_teams.clear()
-                cached_response.matched_teams.append(resolved_teams[0])
-                reacts[emoji_num] = cached_response
-                current_team = f'Plays for:\n{emoji_num} {wrap_in_backticks(resolved_teams[0].__str__())}\n'
-            else:
+                emoji_num = add_to_reacts_dict(reacts, resolved_teams[0])
+                if emoji_num:
+                    current_team = f'Plays for:\n{emoji_num} {wrap_in_backticks(resolved_teams[0].__str__())}\n'
+
+            if not current_team:
                 current_team = f'Plays for: {wrap_in_backticks(resolved_teams[0].__str__())}\n' if resolved_teams else ''
 
             if len(resolved_teams) > 1:
@@ -772,19 +810,15 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                 # Add reacts if for a single player entry
                 if r.is_single_player:
                     for n, old_t in enumerate(resolved_old_teams):
-                        if len(reacts) < len(NUMBERS_KEY_CAPS):
-                            emoji_num = NUMBERS_KEY_CAPS[len(reacts)]
-                            cached_response = copy.deepcopy(r)
-                            cached_response.matched_players.clear()
-                            cached_response.matched_teams.clear()
-                            cached_response.matched_teams.append(old_t)
-                            reacts[emoji_num] = cached_response
-                            resolved_old_teams[n] = emoji_num + " " + wrap_in_backticks(old_t.__str__())
+                        emoji_num = add_to_reacts_dict(reacts, old_t)
+                        if emoji_num:
+                            old_teams += f"{emoji_num} {wrap_in_backticks(old_t.__str__())}\n"
+                        else:
+                            old_teams += f"{wrap_in_backticks(old_t.__str__())}\n"
                 else:
-                    resolved_old_teams = [wrap_in_backticks(old_t.__str__()) for old_t in resolved_old_teams]
+                    old_teams += join("\n", [wrap_in_backticks(old_t.__str__()) for old_t in resolved_old_teams])
 
-                old_teams += join("\n", resolved_old_teams)
-                old_teams = truncate(old_teams, 1000, "…\n") + "\n"
+                old_teams = close_backticks_if_unclosed(truncate(old_teams, 1000, "…\n")) + "\n"
             else:
                 old_teams = ''
 
@@ -896,16 +930,11 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                             break
 
             else:
-                if len(reacts) < len(NUMBERS_KEY_CAPS):
-                    emoji_num = NUMBERS_KEY_CAPS[len(reacts)]
-                    cached_response = copy.deepcopy(r)
-                    cached_response.matched_players.clear()
-                    cached_response.matched_players.append(p)
-                    cached_response.matched_teams.clear()
-                    reacts[emoji_num] = cached_response
-                    additional_info = f"\n More info: React {emoji_num}\n"
-                else:
-                    additional_info = f"\n More info: {COMMAND_PREFIX}full {p.guid}\n"
+                emoji_num = add_to_reacts_dict(reacts, p)
+                additional_info = (
+                    f"\n More info: React {emoji_num}\n"
+                    if emoji_num
+                    else f"\n More info: {COMMAND_PREFIX}full {p.guid}\n")
 
                 if len(notable_results):
                     notable_results_str = ''
@@ -926,7 +955,7 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                     field_body += additional_info
 
                 builder.add_field(name=field_head, value=field_body, inline=False)
-                await asyncio.sleep(1)  # yield
+                await asyncio.sleep(0.001)  # 1ms yield  # yield
 
     if r.has_matched_teams:
         separator = ',\n' if r.matched_teams_len == 1 else ', '
@@ -979,13 +1008,8 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
 
                 # Add in emoji reacts
                 for j, p_str in enumerate(player_strings):
-                    if len(reacts) < len(NUMBERS_KEY_CAPS):
-                        emoji_num = NUMBERS_KEY_CAPS[len(reacts)]
-                        cached_response = copy.deepcopy(r)
-                        cached_response.matched_players.clear()
-                        cached_response.matched_players.append(players_objs[j])
-                        cached_response.matched_teams.clear()
-                        reacts[emoji_num] = cached_response
+                    emoji_num = add_to_reacts_dict(reacts, players_objs[j])
+                    if emoji_num:
                         player_strings[j] = emoji_num + " " + p_str
 
                 info = f'{div_phrase}Players:\n{separator.join(player_strings)}'
@@ -1023,16 +1047,11 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                                   value=t.guid.__str__(),
                                   inline=False)
             else:
-                if len(reacts) < len(NUMBERS_KEY_CAPS):
-                    emoji_num = NUMBERS_KEY_CAPS[len(reacts)]
-                    cached_response = copy.deepcopy(r)
-                    cached_response.matched_players.clear()
-                    cached_response.matched_teams.clear()
-                    cached_response.matched_teams.append(t)
-                    reacts[emoji_num] = cached_response
-                    additional_info = f"\n React {emoji_num} for more\n"
-                else:
-                    additional_info = f"\n More info: {COMMAND_PREFIX}full {t.guid}\n"
+                emoji_num = add_to_reacts_dict(reacts, t)
+                additional_info = (
+                    f"\n React {emoji_num} for more\n"
+                    if emoji_num
+                    else f"\n More info: {COMMAND_PREFIX}full {t.guid}\n")
 
                 field_body = f'{div_phrase}Players: {player_strings}\n' \
                              f'_{team_sources}_' or "(Nothing else to say)"
@@ -1047,15 +1066,28 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                 builder.add_field(name=truncate(t.__str__(), 256, "") or "Unnamed Team",
                                   value=truncate(field_body, 1023, "…_"),
                                   inline=False)
-                await asyncio.sleep(1)  # yield
+                await asyncio.sleep(0.001)  # 1ms yield  # yield
 
     builder.set_footer(
         text=get_random_footer_phrase() + (
             f'Only the first {MAX_RESULTS} results are shown for players and teams.' if r.show_limited else ''
         ),
         icon_url="https://media.discordapp.net/attachments/471361750986522647/758104388824072253/icon.png")
-    await asyncio.sleep(1)  # yield
+    await asyncio.sleep(0.001)  # 1ms yield  # yield
     return ProcessedSlappObject(builder, embed_colour, reacts)
+
+
+def add_to_reacts_dict(reacts, player_or_team: Union[Player, Team]) -> Optional[str]:
+    """
+    Adds the player or team to the reacts dictionary. Returns the reaction that represents the addition, or None
+    if there are no more reactions left in the NUMBERS_KEY_CAPS collection.
+    """
+    if len(reacts) < len(NUMBERS_KEY_CAPS):
+        emoji_num = NUMBERS_KEY_CAPS[len(reacts)]
+        reacts[emoji_num] = player_or_team
+        return emoji_num
+    else:
+        return None
 
 
 def best_team_player_div_string(
@@ -1100,7 +1132,7 @@ def best_team_player_div_string(
         return f"Highest div player is ``{name}`` who plays for {highest_team.name} ({highest_div})."
 
 
-def add_to_reacts_buffer(message_id: str, reacts: Dict[str, SlappResponseObject]):
+def add_to_reacts_buffer(message_id: str, reacts: Dict[str, Union[Player, Team]]):
     slapp_reacts_queue[message_id] = reacts
     if len(slapp_reacts_queue) > 10:
         slapp_reacts_queue.popitem(last=False)
