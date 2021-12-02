@@ -15,11 +15,11 @@ def safe_backticks(string: str) -> str:
     """
     Wrap the string in backticks if and ony if it requires it.
     If the string contains an `, it is wrapped in ```.
-    If the string contains an _ or *, it is wrapped in `.
+    If the string contains an _ or *, or starts or ends with a space, it is wrapped in `.
     """
     if '`' in string:
         string = f"```{string}```"
-    elif '_' in string or '*' in string:
+    elif '_' in string or '*' in string or string.startswith(' ') or string.endswith(' '):
         string = f"`{string}`"
     return string
 

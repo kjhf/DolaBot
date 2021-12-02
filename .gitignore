@@ -1,6 +1,5 @@
 # Custom
 Notes.md
-.env
 *.bat
 bin/
 tests/testdata/*.txt

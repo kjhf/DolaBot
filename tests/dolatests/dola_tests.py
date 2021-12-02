@@ -6,6 +6,7 @@ import unittest
 from time import time
 
 import dotenv
+from discord.ext.commands import Bot
 
 from slapp_py.slapp_runner.slapipes import SlapPipe
 
@@ -38,7 +39,7 @@ class DolaSlappTests(unittest.IsolatedAsyncioTestCase):
         try:
             try:
                 from DolaBot.cogs.slapp_commands import SlappCommands, slapp_ctx_queue
-                commands = SlappCommands(None)
+                commands = SlappCommands(Bot(None))
 
                 # Test data in the testdata folder, which is generated directly from Slapp and copied with
                 # SplatTagConsole.exe --query "e" --verbose >slapp_result.txt 2>&1

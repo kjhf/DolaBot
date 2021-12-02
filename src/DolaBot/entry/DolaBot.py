@@ -69,6 +69,7 @@ class DolaBot(Bot):
 
         # noinspection PyUnreachableCode
         if __debug__:
+            logging.getLogger().setLevel(level="DEBUG")
             presence = "--=IN DEV=--"
         else:
             presence = "with Slate"

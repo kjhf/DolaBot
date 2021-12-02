@@ -12,6 +12,8 @@ TICK = '✅'
 CROSS = '❌'
 EEVEE = '<a:eevee_slap:895391059985715241>'
 TOP_500 = '<:Top500:896488842977230889>'
+HOME = '🏡'
+WAVE = '👋'
 NUMBERS_KEY_CAPS = ["{}\N{COMBINING ENCLOSING KEYCAP}".format(num) for num in range(1, 10)]  # Skip 0
 NUMBERS_KEY_CAPS.append("🔟")
 # Big thank you to GabrielDoddOfficialYT -- https://emoji.gg/user/436716390246776833
@@ -25,6 +27,7 @@ NUMBERS_KEY_CAPS.append("<:keycap_17:895381504576864296>")
 NUMBERS_KEY_CAPS.append("<:keycap_18:895381504983719937>")
 NUMBERS_KEY_CAPS.append("<:keycap_19:895381504476196864>")
 NUMBERS_KEY_CAPS.append("<:keycap_20:895381504149041225>")
+NUMBERS_KEY_CAPS_LEN = len(NUMBERS_KEY_CAPS)
 
 # Abilities
 ABILITY_DOUBLER = "<:AbilityDoubler:841052609648525382>"
