@@ -12,6 +12,7 @@ TICK = '✅'
 CROSS = '❌'
 EEVEE = '<a:eevee_slap:895391059985715241>'
 TOP_500 = '<:Top500:896488842977230889>'
+PLUS = '<:plus:916465605551460352>'
 HOME = '🏡'
 WAVE = '👋'
 NUMBERS_KEY_CAPS = ["{}\N{COMBINING ENCLOSING KEYCAP}".format(num) for num in range(1, 10)]  # Skip 0

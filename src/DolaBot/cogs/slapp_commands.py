@@ -29,7 +29,7 @@ from slapp_py.slapp_runner.slapp_response_object import SlappResponseObject
 from DolaBot.constants import emojis
 from DolaBot.constants.bot_constants import COMMAND_PREFIX
 from DolaBot.constants.emojis import TOP_500, TROPHY, TICK, TURTLE, RUNNING, LOW_INK, NUMBERS_KEY_CAPS, TYPING, CROSS, \
-    NUMBERS_KEY_CAPS_LEN
+    NUMBERS_KEY_CAPS_LEN, PLUS
 from DolaBot.constants.footer_phrases import get_random_footer_phrase
 from DolaBot.helpers.embed_helper import to_embed, NUMBER_OF_FIELDS_LIMIT, FIELD_VALUE_LIMIT, FIELD_NAME_LIMIT, \
     TOTAL_CHARACTER_LIMIT
@@ -907,7 +907,6 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
             field_head = truncate(country_flag + top500 + current_name, FIELD_NAME_LIMIT) or '(Unnamed Player)'
 
             notable_results = r.get_first_placements(p)
-            notable_results.extend(p.plus_membership)
             won_low_ink = r.placement_is_winning_low_ink(r.best_low_ink_placement(p))
             grouped_player_sources = r.get_grouped_sources_text(p)
 
@@ -936,8 +935,13 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                                       value=truncate(field_body, FIELD_VALUE_LIMIT, "…") or "(Nothing else to say)",
                                       inline=False)
 
-                if len(notable_results):
+                if len(notable_results) or p.plus_membership:
                     notable_results_str = ''
+
+                    p.plus_membership.sort(lambda pm: pm.date, reverse=True)
+                    for plus in p.plus_membership:
+                        notable_results_str += f"{PLUS}{plus.level} member ({plus.date:%Y-%m})\n"
+
                     if won_low_ink:
                         notable_results_str += f"{LOW_INK} Low Ink Winner\n"
 
@@ -970,7 +974,10 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                     else f"\n More info: {COMMAND_PREFIX}full {p.guid}\n")
 
                 notable_results_str = ''
-                if len(notable_results):
+                if len(notable_results) or p.plus_membership:
+                    if p.plus_membership:
+                        plus = p.latest_plus_membership
+                        notable_results_str += f"{PLUS} {plus.date:%Y-%m} +{plus.level} member\n"
                     if won_low_ink:
                         notable_results_str += f"{LOW_INK} Low Ink Winner\n"
                     for win in notable_results:
@@ -1004,7 +1011,7 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
 
             # Transform names by adding a backslash to any backslashes.
             grouped_team_sources = r.get_grouped_sources_text(t)
-            players = r.matched_players_for_teams[t.guid.__str__()]
+            players = r.matched_players_for_teams.get(t.guid.__str__(), [])
             players_in_team: List[Player] = []
             players_ever_in_team: List[Player] = []
             player_strings = []
@@ -1012,7 +1019,7 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
             for player_tuple in players:
                 p = player_tuple[0]
                 in_team = player_tuple[1]
-                name = f'{safe_backticks(p.name.value)}'
+                name = f'{safe_backticks(truncate(p.name.value, 48, "…"))}'
                 aka = ("_ᴬᴷᴬ_ " + ', '.join([safe_backticks(truncate(alt.value, 20, '…')) for alt in p.names[1:10]])) if len(p.names) > 1 else ""
                 and_more = len(p.names[11:])
                 player_strings.append(name)
@@ -1194,7 +1201,7 @@ def best_team_player_div_string(
                 highest_team = player_team
                 best_player = p
 
-    if highest_div.is_unknown or team.current_div.is_unknown or best_player is None:
+    if highest_div.is_unknown or highest_team.current_div.is_unknown or best_player is None:
         return ''
     elif highest_div == team.current_div:
         return 'No higher div players.'
