@@ -62,4 +62,4 @@ class BotUtilCommands(commands.Cog):
                            f"Owner check: {is_owner}\n"
                            )
         except Exception as e:
-            await ctx.send(f"Something went wrong compiling debug details! {truncate(e.__str__(), 900, '…')}")
+            await ctx.send(f"Something went wrong compiling debug details! {truncate(e.__str__(), 900)}")

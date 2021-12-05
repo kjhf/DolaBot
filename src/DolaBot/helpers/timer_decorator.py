@@ -10,7 +10,7 @@ def debug_time(f):
         ts = time()
         result = f(*args, **kw)
         te = time()
-        print('func:%r args:[%s, %s] took: %2.4f sec' % (f.__name__, truncate(str(repr(args)), 100, '…'), truncate(str(repr(kw)), 100, '…'), te-ts))
+        print('func:%r args:[%s, %s] took: %2.4f sec' % (f.__name__, truncate(str(repr(args)), 100), truncate(str(repr(kw)), 100), te-ts))
         return result
     return wrap
 
@@ -21,6 +21,6 @@ def debug_time_async(f):
         result = await f(*args, **kw)
         te = time()
         print('func:%r args:[%s, %s] took: %2.4f sec' %
-              (f.__name__, truncate(str(repr(args)), 100, '…'), truncate(str(repr(kw)), 100, '…'), te - ts))
+              (f.__name__, truncate(str(repr(args)), 100), truncate(str(repr(kw)), 100), te - ts))
         return result
     return wrapper

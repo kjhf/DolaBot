@@ -7,7 +7,6 @@ You have been warned :)
 import random
 
 from DolaBot.constants.bot_constants import COMMAND_PREFIX
-from DolaBot.constants.emojis import EEVEE
 from DolaBot.helpers import weapons
 
 
@@ -43,13 +42,14 @@ FOOTER_PHRASES = [
     "You're looking very beautiful today. ",
     "You're looking very dapper today. ",
     " ✨ JACKPOT WINNER! ✨ ",
-    EEVEE,
+    "Oh, you do read these! ",
 
     # LGBT+
     "Be gay! Do crimes! ",
     "Rule 1: don't be a dick! ",
     "Imagine a computer program to be non-binary. Haha. ",
     "Trans rights! ",
+    "BLM! ",
     "Ewww cooties. ",
     "Skirt go spinny. ",
     "Programming socks ON. ",
@@ -107,6 +107,9 @@ FOOTER_PHRASES = [
     "It's Pikachu! ",
     "Checkmate ♔ ",
     "Don't speak his name! ..... ",
+    "There's a time and place for everything, but not now. ",
+    "*You hear villagers, but can only make out heuurrgghh sounds* ",
+    "Would you like some pigeon milk with that? ",
 
     # TV, Film, and Music references
     "Orange is the new black. ",
@@ -126,7 +129,7 @@ FOOTER_PHRASES = [
     "I believe in a thing called love! ",
     "Honey honey, how you thrill me... ",
     "I'm high on believing! That you're in love with me! ",
-    "Gotta a one-way ticket to hell and back! ",
+    "Got a one-way ticket to hell and back! ",
     "You'll never know, dear, how much I love you. ",
     "I'm sorry, Dave, but I'm afraid I can't do that. ",
     "We're off to see the wizard! ",
@@ -144,5 +147,5 @@ FOOTER_PHRASES = [
     "Hello it is Dola bringing you yet another Slapp result. ",
     "Not sponsored by any mobile game or VPN software. ",
     "OH FECK! ",
-
+    "...and then I spoke. ",
 ]

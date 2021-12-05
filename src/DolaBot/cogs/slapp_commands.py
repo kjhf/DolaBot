@@ -10,7 +10,7 @@ from typing import Optional, List, Tuple, Dict, Deque, Union, Coroutine
 from DolaBot.helpers.discord_renderer_helper import safe_backticks, close_backticks_if_unclosed, wrap_in_backticks
 from DolaBot.helpers.supports_send import SupportsSend
 from battlefy_toolkit.downloaders.org_downloader import get_tournament_ids
-from slapp_py.core_classes.builtins import UNKNOWN_PLAYER
+from slapp_py.core_classes.builtins import UNKNOWN_PLAYER, UnknownTeam
 from slapp_py.core_classes.division import Division
 from slapp_py.core_classes.name import Name
 from slapp_py.core_classes.player import Player
@@ -32,9 +32,9 @@ from DolaBot.constants.emojis import TOP_500, TROPHY, TICK, TURTLE, RUNNING, LOW
     NUMBERS_KEY_CAPS_LEN, PLUS
 from DolaBot.constants.footer_phrases import get_random_footer_phrase
 from DolaBot.helpers.embed_helper import to_embed, NUMBER_OF_FIELDS_LIMIT, FIELD_VALUE_LIMIT, FIELD_NAME_LIMIT, \
-    TOTAL_CHARACTER_LIMIT
+    TOTAL_CHARACTER_LIMIT, append_unrolled_list
 from DolaBot.helpers.processed_slapp_object import ProcessedSlappObject
-from slapp_py.helpers.str_helper import join, truncate, escape_characters
+from slapp_py.helpers.str_helper import join, truncate, escape_characters, conditional_str
 
 from operator import itemgetter
 
@@ -92,7 +92,7 @@ async def handle_html(ctx: Optional[SupportsSend], description: str, response: O
                     p = r.matched_players[0]
 
                 team_players[p] = r
-                team_awards.append(r.get_first_placements(p))
+                team_awards.append(get_first_placements_text(r, p))
 
             player_skills = [player.skill for player in team_players]
             player_skills.sort(reverse=True)
@@ -155,8 +155,8 @@ async def handle_html(ctx: Optional[SupportsSend], description: str, response: O
                 style = style_good
 
             player_styles.append(style)
-            names = list(set([name.value for name in player.names if name and name.value]))
-            names = truncate(', '.join(names[0:]), 1000, "…")
+            names = list({name.value for name in player.names if name and name.value})
+            names = truncate(join(', ', names[0:], post_func=lambda x: truncate(x, 36)), 1000)
 
             player_detail = f"Names: {names} \n"
             player_detail += f"Best Div: {best_div} \n"
@@ -251,7 +251,7 @@ class SlappCommands(commands.Cog):
                 verification_message += f'Ignoring team {team_name} ({team_id}) because they have no players!\n'
                 continue
 
-            ignored_players = [truncate(player.get("inGameName", "(unknown player)"), 25, '…')
+            ignored_players = [truncate(player.get("inGameName", "(unknown player)"), 25)
                                for player in players if not player.get('persistentPlayerID')]
 
             players = [player for player in players if player.get('persistentPlayerID')]
@@ -473,7 +473,7 @@ class SlappCommands(commands.Cog):
             for i in range(0, len(builder.fields)):
                 field: dict = builder._fields[i]
                 if len(field["value"]) > FIELD_VALUE_LIMIT:
-                    field["value"] = close_backticks_if_unclosed(truncate(field["value"], FIELD_VALUE_LIMIT - 3, '…'))
+                    field["value"] = close_backticks_if_unclosed(truncate(field["value"], FIELD_VALUE_LIMIT - 3))
 
             removed_fields: List[dict] = []
             message = 1
@@ -558,7 +558,7 @@ class SlappCommands(commands.Cog):
                             p = r.matched_players[0]
 
                         team_players.append(p)
-                        team_awards.append(r.get_first_placements(p))
+                        team_awards.append(get_first_placements_text(r, p))
 
                     player_skills = [player.skill for player in team_players]
                     player_skills.sort(reverse=True)
@@ -567,7 +567,7 @@ class SlappCommands(commands.Cog):
                     (_, _), (max_clout, max_confidence) = Skill.team_clout(player_skills)
                     teams_by_clout.append(
                         (team_name,
-                         [truncate(player.name.value, 25, '…') for player in team_players],
+                         [truncate(player.name.value, 25) for player in team_players],
                          max_clout,
                          max_confidence,
                          awards)
@@ -585,7 +585,7 @@ class SlappCommands(commands.Cog):
 
             message = ''
             lines: List[str] = ["Here's how I'd order the teams and their players from best-to-worst, and assuming each team puts its best 4 players on:\n```"]
-            for line in [f"{truncate(tup[0], 50, '…')} (Clout: {tup[2]} with {tup[3]}% confidence) [{', '.join(tup[1])}] {tup[4]}" for tup in teams_by_clout]:
+            for line in [f"{truncate(tup[0], 50)} (Clout: {tup[2]} with {tup[3]}% confidence) [{', '.join(tup[1])}] {tup[4]}" for tup in teams_by_clout]:
                 lines.append(line)
 
             for line in lines:
@@ -632,7 +632,7 @@ class SlappCommands(commands.Cog):
                 team_1_skills = response_1.get_team_skills(team_1.guid).values()
                 if team_1_skills:
                     (_, _), (max_clout_1, max_conf_1) = Skill.team_clout(team_1_skills)
-                    message += Skill.make_message_clout(max_clout_1, max_conf_1, truncate(team_1.name.value, 25, "…")) + '\n'
+                    message += Skill.make_message_clout(max_clout_1, max_conf_1, truncate(team_1.name.value, 25)) + '\n'
                 else:
                     max_conf_1 = 0
 
@@ -640,7 +640,7 @@ class SlappCommands(commands.Cog):
                 team_2_skills = response_2.get_team_skills(team_2.guid).values()
                 if team_2_skills:
                     (_, _), (max_clout_2, max_conf_2) = Skill.team_clout(team_2_skills)
-                    message += Skill.make_message_clout(max_clout_2, max_conf_2, truncate(team_2.name.value, 25, "…")) + '\n'
+                    message += Skill.make_message_clout(max_clout_2, max_conf_2, truncate(team_2.name.value, 25)) + '\n'
                 else:
                     max_conf_2 = 0
 
@@ -658,9 +658,9 @@ class SlappCommands(commands.Cog):
 
             elif matching_mode == 'players':
                 p1 = response_1.matched_players[0]
-                message += Skill.make_message_clout(p1.skill.clout, p1.skill.confidence, truncate(p1.name.value, 25, "…")) + '\n'
+                message += Skill.make_message_clout(p1.skill.clout, p1.skill.confidence, truncate(p1.name.value, 25)) + '\n'
                 p2 = response_2.matched_players[0]
-                message += Skill.make_message_clout(p2.skill.clout, p2.skill.confidence, truncate(p2.name.value, 25, "…")) + '\n'
+                message += Skill.make_message_clout(p2.skill.clout, p2.skill.confidence, truncate(p2.name.value, 25)) + '\n'
                 quality = Skill.calculate_quality_of_game_players(p1.skill, p2.skill)
                 message += Skill.make_message_fairness(quality) + '\n'
             else:
@@ -843,7 +843,7 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
             p = r.matched_players[i]
 
             # Transform names by adding a backslash to any backslashes.
-            names = list(set([escape_characters(name.value) for name in p.names if name and name.value]))
+            names = list({escape_characters(name.value) for name in p.names if name and name.value})
             current_name = f"{names[0]}" if len(names) else "(Unnamed Player)"
             resolved_teams = r.get_teams_for_player(p)
 
@@ -856,57 +856,54 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
             if not current_team:
                 current_team = f'Plays for: {wrap_in_backticks(resolved_teams[0].__str__())}\n' if resolved_teams else ''
 
+            old_teams: List[str] = []
             if len(resolved_teams) > 1:
-                old_teams = 'Old teams: \n'
                 resolved_old_teams = resolved_teams[1:]
 
                 # Add reacts if for a single player entry
                 if r.is_single_player:
-                    for n, old_t in enumerate(resolved_old_teams):
+                    for old_t in resolved_old_teams:
                         emoji_num = add_to_reacts_dict(reacts, old_t)
                         if emoji_num:
-                            old_teams += f"{emoji_num} {wrap_in_backticks(old_t.__str__())}\n"
+                            old_teams.append(f"{emoji_num} {wrap_in_backticks(old_t.__str__())}")
                         else:
-                            old_teams += f"{wrap_in_backticks(old_t.__str__())}\n"
+                            old_teams.append(f"{wrap_in_backticks(old_t.__str__())}")
                 else:
-                    old_teams += join("\n", [wrap_in_backticks(old_t.__str__()) for old_t in resolved_old_teams])
-
-                old_teams = close_backticks_if_unclosed(truncate(old_teams, 1000, "…\n")) + "\n"
-            else:
-                old_teams = ''
+                    old_teams.extend([wrap_in_backticks(old_t.__str__()) for old_t in resolved_old_teams])
 
             if len(names) > 1:
-                other_names = truncate("_ᴬᴷᴬ_ ```" + '\n'.join(names[1:]) + "```\n", 1000, "…\n```\n")
+                other_names = conditional_str(prefix="_ᴬᴷᴬ_ ```", result=join('\n', names[1:], post_func=lambda x: truncate(x, 256)), suffix="```\n")
+                other_names = truncate(other_names, 1000, "…\n```\n")
             else:
                 other_names = ''
 
-            battlefy = ''
-            for battlefy_profile in p.battlefy.slugs:
-                battlefy += f'{emojis.BATTLEFY} [{escape_characters(battlefy_profile.value)}]' \
-                            f'({battlefy_profile.uri})\n'
+            battlefy: List[str] = [
+                f'{emojis.BATTLEFY} [{escape_characters(battlefy_profile.value)}]({battlefy_profile.uri})'
+                for battlefy_profile in p.battlefy.slugs
+            ]
 
-            discord = ''
+            discord: List[str] = []
             for discord_profile in p.discord.ids:
                 did = escape_characters(discord_profile.value)
-                discord += f'{emojis.DISCORD} [{did}]' \
-                           f'(https://discord.id/?prefill={did}) \n🦑 [Sendou](https://sendou.ink/u/{did})\n'
+                discord.append(f'{emojis.DISCORD} [{did}](https://discord.id/?prefill={did}) \n'
+                               f'🦑 [Sendou](https://sendou.ink/u/{did})')
 
-            twitch = ''
-            for twitch_profile in p.twitch_profiles:
-                twitch += f'{emojis.TWITCH} [{escape_characters(twitch_profile.value)}]' \
-                            f'({twitch_profile.uri})\n'
+            twitch: List[str] = [
+                f'{emojis.TWITCH} [{escape_characters(twitch_profile.value)}]({twitch_profile.uri})'
+                for twitch_profile in p.twitch_profiles
+            ]
 
-            twitter = ''
-            for twitter_profile in p.twitter_profiles:
-                twitter += f'{emojis.TWITTER} [{escape_characters(twitter_profile.value)}]' \
-                            f'({twitter_profile.uri})\n'
+            twitter: List[str] = [
+                f'{emojis.TWITTER} [{escape_characters(twitter_profile.value)}]({twitter_profile.uri})'
+                for twitter_profile in p.twitter_profiles
+            ]
 
             country_flag = p.country_flag + ' ' if p.country_flag else ''
             top500 = (TOP_500 + " ") if p.top500 else ''
             current_name = safe_backticks(current_name)
             field_head = truncate(country_flag + top500 + current_name, FIELD_NAME_LIMIT) or '(Unnamed Player)'
 
-            notable_results = r.get_first_placements(p)
+            notable_results = get_first_placements_text(r, p)
             won_low_ink = r.placement_is_winning_low_ink(r.best_low_ink_placement(p))
             grouped_player_sources = r.get_grouped_sources_text(p)
 
@@ -915,7 +912,7 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
             if r.matched_players_len == 1 and r.matched_teams_len < 14:
                 field_body = f'{other_names}'
                 builder.add_field(name=field_head,
-                                  value=truncate(field_body, FIELD_VALUE_LIMIT, "…") or "(No other names)",
+                                  value=truncate(field_body, FIELD_VALUE_LIMIT) or "(No other names)",
                                   inline=False)
 
                 fcs_len = len(p.friend_codes)
@@ -923,39 +920,43 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                                   value=f"{fcs_len} known friend code{'' if fcs_len == 1 else 's'}",
                                   inline=False)
 
-                if current_team or old_teams:
-                    field_body = f'{current_team}{old_teams}'
-                    builder.add_field(name='Teams:',
-                                      value=truncate(field_body, FIELD_VALUE_LIMIT, "…") or "(Nothing else to say)",
+                if current_team:
+                    builder.add_field(name='Current team:',
+                                      value=truncate(current_team, FIELD_VALUE_LIMIT),
                                       inline=False)
 
-                if twitch or twitter or battlefy or discord:
-                    field_body = f'{twitch}{twitter}{battlefy}{discord}'
-                    builder.add_field(name='Socials:',
-                                      value=truncate(field_body, FIELD_VALUE_LIMIT, "…") or "(Nothing else to say)",
-                                      inline=False)
+                if old_teams:
+                    append_unrolled_list(builder, "Old teams", old_teams)
+
+                if twitch:
+                    append_unrolled_list(builder, "Twitch", twitch)
+
+                if twitter:
+                    append_unrolled_list(builder, "Twitter", twitter)
+
+                if battlefy:
+                    append_unrolled_list(builder, "Battlefy", battlefy)
+
+                if discord:
+                    append_unrolled_list(builder, "Discord", discord)
 
                 if len(notable_results) or p.plus_membership:
-                    notable_results_str = ''
+                    notable_results_lines: List[str] = []
 
-                    p.plus_membership.sort(lambda pm: pm.date, reverse=True)
+                    p.plus_membership.sort(key=lambda pm: pm.date, reverse=True)
                     for plus in p.plus_membership:
-                        notable_results_str += f"{PLUS}{plus.level} member ({plus.date:%Y-%m})\n"
+                        notable_results_lines.append(f"{PLUS}{plus.level} member ({plus.date:%Y-%m})")
 
                     if won_low_ink:
-                        notable_results_str += f"{LOW_INK} Low Ink Winner\n"
+                        notable_results_lines.append(f"{LOW_INK} Low Ink Winner")
 
                     for win in notable_results:
-                        notable_results_str += f"{TROPHY} Won {win}\n"
+                        notable_results_lines.append(f"{TROPHY} Won {win}")
 
-                    builder.add_field(name='Notable Wins:',
-                                      value=truncate(notable_results_str, FIELD_VALUE_LIMIT, "…"),
-                                      inline=False)
+                    append_unrolled_list(builder, "Notable Wins", notable_results_lines)
 
                 if len(p.weapons):
-                    builder.add_field(name='Weapons:',
-                                      value=truncate(', '.join(p.weapons), FIELD_VALUE_LIMIT, "…"),
-                                      inline=False)
+                    append_unrolled_list(builder, "Weapons", p.weapons, separator=', ')
 
                 if not p.skill.is_default:
                     clout_message = p.skill.message
@@ -963,7 +964,7 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                                       value=clout_message,
                                       inline=False)
 
-                append_unrolled_sources(builder, grouped_player_sources)
+                append_unrolled_list(builder, "Sources", grouped_player_sources)
 
             # Multiple players summary view --
             else:
@@ -986,8 +987,18 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                 fcs_str = (len(p.friend_codes).__str__() + " known friend codes\n" if len(p.friend_codes) > 1
                            else "1 known friend code\n" if len(p.friend_codes) == 1
                            else "")
-                field_body = (f'{other_names}{current_team}{old_teams}{fcs_str}'
-                              f'{twitch}{twitter}{battlefy}{discord}'
+
+                old_teams_str = conditional_str(prefix="Old teams:\n", result="\n".join(old_teams), suffix="\n")
+                old_teams_str = close_backticks_if_unclosed(truncate(old_teams_str, 3 * FIELD_VALUE_LIMIT / 4))
+                socials_str = truncate(conditional_str(suffix="\n", result='\n'.join(twitch))
+                                       + conditional_str(suffix="\n", result='\n'.join(twitter))
+                                       + conditional_str(suffix="\n", result='\n'.join(battlefy))
+                                       + conditional_str(suffix="\n", result='\n'.join(discord)), FIELD_VALUE_LIMIT)
+                if socials_str:
+                    socials_str += "\n"
+
+                field_body = (f'{other_names}{current_team}{old_teams_str}{fcs_str}'
+                              f'{socials_str}'
                               f'{notable_results_str}') or "(Nothing else to say)"
                 sources_field: str = "Sources:\n" + "\n".join(grouped_player_sources)
                 field_body += sources_field
@@ -995,7 +1006,7 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                 if len(field_body) + len(additional_info) < FIELD_VALUE_LIMIT:
                     pass
                 else:
-                    field_body = truncate(field_body, (FIELD_VALUE_LIMIT - 4) - len(additional_info), indicator="…")
+                    field_body = truncate(field_body, (FIELD_VALUE_LIMIT - 4) - len(additional_info))
                     field_body = close_backticks_if_unclosed(field_body)
                 field_body += additional_info
 
@@ -1019,8 +1030,8 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
             for player_tuple in players:
                 p = player_tuple[0]
                 in_team = player_tuple[1]
-                name = f'{safe_backticks(truncate(p.name.value, 48, "…"))}'
-                aka = ("_ᴬᴷᴬ_ " + ', '.join([safe_backticks(truncate(alt.value, 20, '…')) for alt in p.names[1:10]])) if len(p.names) > 1 else ""
+                name = f'{safe_backticks(truncate(p.name.value, 48))}'
+                aka = conditional_str(prefix="_ᴬᴷᴬ_ ", result=', '.join([safe_backticks(truncate(alt.value, 20)) for alt in p.names[1:10]]))
                 and_more = len(p.names[11:])
                 player_strings.append(name)
                 player_strings_detailed.append(f'{"_(Latest)_" if in_team else "_(Ex)_"} {name} {aka}{f" +{and_more} other names…" if and_more else ""}')
@@ -1045,7 +1056,7 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                 num_players_str = f"{len(players)} players"
                 info = f'{div_phrase}{tags_str}{num_players_str}' or '.'
                 builder.add_field(name=truncate(t.__str__(), FIELD_NAME_LIMIT, "") or "Unnamed Team",
-                                  value=truncate(info, FIELD_VALUE_LIMIT, "…"),
+                                  value=truncate(info, FIELD_VALUE_LIMIT),
                                   inline=False)
 
                 # Show the team's alt names, if any
@@ -1086,14 +1097,14 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                     best_player = max(player_skills, key=itemgetter(1))[0]
                     if not best_player.skill.is_default:
                         builder.add_field(name='Best player in the team by clout:',
-                                          value=truncate(best_player.name.value, 500, "…") + ": " + best_player.skill.message,
+                                          value=truncate(best_player.name.value, 500) + ": " + best_player.skill.message,
                                           inline=False)
 
                 builder.add_field(name='Slapp Id:',
                                   value=t.guid.__str__(),
                                   inline=False)
 
-                append_unrolled_sources(builder, grouped_team_sources)
+                append_unrolled_list(builder, "Sources", grouped_team_sources)
 
             # Multiple teams summary view --
             else:
@@ -1110,12 +1121,12 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                 if len(field_body) + len(additional_info) < FIELD_VALUE_LIMIT:
                     field_body += additional_info
                 else:
-                    field_body = truncate(field_body, (FIELD_VALUE_LIMIT - 4) - len(additional_info), indicator="…")
+                    field_body = truncate(field_body, (FIELD_VALUE_LIMIT - 4) - len(additional_info))
                     field_body = close_backticks_if_unclosed(field_body)
                     field_body += additional_info
 
                 builder.add_field(name=truncate(t.__str__(), FIELD_NAME_LIMIT, "") or "Unnamed Team",
-                                  value=truncate(field_body, FIELD_VALUE_LIMIT, "…_"),
+                                  value=truncate(field_body, FIELD_VALUE_LIMIT),
                                   inline=False)
                 await asyncio.sleep(0.001)  # 1ms yield
 
@@ -1126,36 +1137,6 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
         icon_url="https://media.discordapp.net/attachments/471361750986522647/758104388824072253/icon.png")
     await asyncio.sleep(0.001)  # 1ms yield
     return ProcessedSlappObject(builder, embed_colour, reacts)
-
-
-def append_unrolled_sources(builder: Embed, grouped_sources_text: List[str]):
-    max_number_of_groups = max(15, NUMBER_OF_FIELDS_LIMIT)
-
-    if len(grouped_sources_text):
-        for source_batch in range(0, max_number_of_groups):
-            sources_count = len(grouped_sources_text)
-            this_batch_message = ''
-            j = 0
-            for j in range(0, sources_count):
-                # Check if we'd overrun the field by adding this group.
-                group_text_to_add = grouped_sources_text[j] + '\n'
-                if len(this_batch_message) + len(group_text_to_add) >= FIELD_VALUE_LIMIT:
-                    # Check if we're going to loop indefinitely
-                    if j == 0:
-                        # Bite the bullet and truncate-add otherwise we'd get stuck
-                        this_batch_message += truncate(grouped_sources_text[j], FIELD_VALUE_LIMIT, "…\n")
-                    break
-                else:
-                    this_batch_message += grouped_sources_text[j] + '\n'
-            grouped_sources_text = grouped_sources_text[min(sources_count, (j + 1)):]
-            no_more = len(grouped_sources_text) <= 0
-            only_source = no_more and source_batch == 0
-            sources_header = f'Sources:' if only_source else f'Sources ({(source_batch + 1)}):'
-            builder.add_field(name=sources_header,
-                              value=truncate(this_batch_message, FIELD_VALUE_LIMIT, "…"),
-                              inline=False)
-            if no_more:
-                break
 
 
 def add_to_reacts_dict(reacts, player_or_team: Union[Player, Team]) -> Optional[str]:
@@ -1214,3 +1195,15 @@ def add_to_reacts_buffer(message_id: str, reacts: Dict[str, Union[Player, Team]]
     slapp_reacts_queue[message_id] = reacts
     if len(slapp_reacts_queue) > NUMBERS_KEY_CAPS_LEN:  # always ensure we have room for the last message.
         slapp_reacts_queue.popitem(last=False)
+
+
+def get_first_placements_text(r: SlappResponseObject, p: Player) -> List[str]:
+    """
+    Gets a list of displayed text in form where the specified player has come first.
+    """
+    return [
+        f"{tup[1].name} in {tup[0].get_linked_name_display()}"
+        f"{conditional_str(prefix=' as ', result=(join(' or ', p.filter_to_source(tup[0].id).names[0:], post_func=lambda x: safe_backticks(truncate(x, 16)))))}"
+        f"{conditional_str(prefix=' in team ', result=(join(' or ', [team.name for team in r.get_teams_from_ids(tup[2]) if team.guid != UnknownTeam.guid], post_func=lambda x: safe_backticks(truncate(x, 64)))))}"
+        for tup in r.get_placements_by_place(p)
+    ]

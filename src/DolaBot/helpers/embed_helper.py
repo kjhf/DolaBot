@@ -1,4 +1,4 @@
-from typing import Optional, Union, Tuple
+from typing import Optional, Union, Tuple, List
 
 import discord
 from discord import Embed, Color, Colour
@@ -45,8 +45,53 @@ def to_embed(
         raise discord.InvalidArgument('Specify message or image_url')
 
     return discord.Embed(
-        description=truncate(description, DESCRIPTION_LIMIT, "…"),
+        description=truncate(description, DESCRIPTION_LIMIT),
         colour=colour if not isinstance(colour, (int, int, int)) else Color.from_rgb(colour[0], colour[1], colour[2]),
         image_url=image_url,
-        title=truncate(title, TITLE_LIMIT, "…")  # Embed titles limited to 256 characters.
+        title=truncate(title, TITLE_LIMIT)  # Embed titles limited to 256 characters.
     )
+
+
+def append_unrolled_list(
+        builder: Embed,
+        field_header: str,
+        field_values: List[str],
+        separator: str = '\n',
+        max_unrolls: int = NUMBER_OF_FIELDS_LIMIT) -> None:
+    """
+    Append a list to the builder as strings that might append multiple fields.
+    If an individual string would overflow the field, it will be truncated to fit.
+
+    :param builder: The embed builder to append to.
+    :param field_header: The title of the field. A count will be automatically added.
+    :param field_values: The list of strings to add to the field(s).
+    :param separator: The separator between strings. Newline by default.
+    :param max_unrolls: The maximum number of fields to add. Will max out at NUMBER_OF_FIELDS_LIMIT.
+    """
+    max_unrolls = min(max_unrolls, NUMBER_OF_FIELDS_LIMIT)
+
+    if len(field_values):
+        for batch in range(0, max_unrolls):
+            values_length = len(field_values)
+            this_batch_message = ''
+            j = 0
+            for j in range(0, values_length):
+                # Check if we'd overrun the field by adding this message.
+                single_value_to_add = field_values[j] + separator
+                if len(this_batch_message) + len(single_value_to_add) >= FIELD_VALUE_LIMIT:
+                    # Check if we're going to loop indefinitely
+                    if j == 0:
+                        # Bite the bullet and truncate-add otherwise we'd get stuck
+                        this_batch_message += truncate(field_values[j], FIELD_VALUE_LIMIT, "…" + separator)
+                    break
+                else:
+                    this_batch_message += field_values[j] + separator
+            field_values = field_values[min(values_length, (j + 1)):]
+            no_more = len(field_values) <= 0
+            only_field = no_more and batch == 0
+            header = f'{field_header}:' if only_field else f'{field_header} ({(batch + 1)}):'
+            builder.add_field(name=header,
+                              value=truncate(this_batch_message, FIELD_VALUE_LIMIT),
+                              inline=False)
+            if no_more:
+                break

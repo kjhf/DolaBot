@@ -42,6 +42,16 @@ THEN
 
 ### Test or run with 
 * `docker run -t -d slate.azurecr.io/dola`
+* Recommended tests:
+  * Expected result, e.g. "slate"
+  * Query that has players and teams, e.g. "squid" - should be green
+  * Multiple teams query e.g. "squid --team" - should be gold
+  * Multiple players query "squid --player" - should be blue
+  * Test reacts (1 and 20)
+  * Single player result, e.g. react to the above - should be dark gold
+  * Single team, e.g. react to the above - should be dark blue
+  * Test a plus member, e.g. Sendou
+
 
 ### Update Azure Image with
 After the build step, (note these commands are long in this window!)

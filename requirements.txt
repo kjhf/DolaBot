@@ -2,7 +2,7 @@ requests~=2.25.1
 discord~=1.0.1
 Pillow
 battlefy-toolkit-slate>=1.1.0
-SlappPy-Slate==1.11.3
+SlappPy-Slate==1.12.3
 python-dotenv
 trueskill~=0.4.5
 python-dateutil~=2.8.1
