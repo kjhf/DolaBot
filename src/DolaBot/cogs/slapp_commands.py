@@ -453,7 +453,7 @@ class SlappCommands(commands.Cog):
                 if ctx:
                     await ctx.send(content=f'Something went wrong processing the result from Slapp. Blame Slate. 😒🤔 '
                                            f'({e.__str__()})')
-                logging.exception(exc_info=e, msg=traceback.format_exc())
+                logging.exception(exc_info=e, msg=f"<@!97288493029416960> " + traceback.format_exc())  # @Slate in logging channel
                 return
 
             await SlappCommands.send_built_slapp(ctx, processed)
@@ -520,7 +520,7 @@ class SlappCommands(commands.Cog):
         except Exception as e:
             if ctx:
                 await ctx.send(content=f'Too many results, sorry 😔 ({e.__str__()})')
-            logging.exception(exc_info=e, msg=traceback.format_exc())
+            logging.exception(exc_info=e, msg=f"<@!97288493029416960> " + traceback.format_exc())  # @Slate in logging channel
             logging.info(f'Attempted to send:\n{builder.to_dict()}')
 
     @staticmethod
@@ -841,177 +841,11 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                 break
 
             p = r.matched_players[i]
-
-            # Transform names by adding a backslash to any backslashes.
-            names = list({escape_characters(name.value) for name in p.names if name and name.value})
-            current_name = f"{names[0]}" if len(names) else "(Unnamed Player)"
-            resolved_teams = r.get_teams_for_player(p)
-
-            current_team = None
-            if r.is_single_player and resolved_teams:
-                emoji_num = add_to_reacts_dict(reacts, resolved_teams[0])
-                if emoji_num:
-                    current_team = f'Plays for:\n{emoji_num} {wrap_in_backticks(resolved_teams[0].__str__())}\n'
-
-            if not current_team:
-                current_team = f'Plays for: {wrap_in_backticks(resolved_teams[0].__str__())}\n' if resolved_teams else ''
-
-            old_teams: List[str] = []
-            if len(resolved_teams) > 1:
-                resolved_old_teams = resolved_teams[1:]
-
-                # Add reacts if for a single player entry
-                if r.is_single_player:
-                    for old_t in resolved_old_teams:
-                        emoji_num = add_to_reacts_dict(reacts, old_t)
-                        if emoji_num:
-                            old_teams.append(f"{emoji_num} {wrap_in_backticks(old_t.__str__())}")
-                        else:
-                            old_teams.append(f"{wrap_in_backticks(old_t.__str__())}")
-                else:
-                    old_teams.extend([wrap_in_backticks(old_t.__str__()) for old_t in resolved_old_teams])
-
-            if len(names) > 1:
-                other_names = conditional_str(prefix="_ᴬᴷᴬ_ ```", result=join('\n', names[1:], post_func=lambda x: truncate(x, 256)), suffix="```\n")
-                other_names = truncate(other_names, 1000, "…\n```\n")
-            else:
-                other_names = ''
-
-            battlefy: List[str] = [
-                f'{emojis.BATTLEFY} [{escape_characters(battlefy_profile.value)}]({battlefy_profile.uri})'
-                for battlefy_profile in p.battlefy.slugs
-            ]
-
-            discord: List[str] = []
-            for discord_profile in p.discord.ids:
-                did = escape_characters(discord_profile.value)
-                discord.append(f'{emojis.DISCORD} [{did}](https://discord.id/?prefill={did}) \n'
-                               f'🦑 [Sendou](https://sendou.ink/u/{did})')
-
-            twitch: List[str] = [
-                f'{emojis.TWITCH} [{escape_characters(twitch_profile.value)}]({twitch_profile.uri})'
-                for twitch_profile in p.twitch_profiles
-            ]
-
-            twitter: List[str] = [
-                f'{emojis.TWITTER} [{escape_characters(twitter_profile.value)}]({twitter_profile.uri})'
-                for twitter_profile in p.twitter_profiles
-            ]
-
-            country_flag = p.country_flag + ' ' if p.country_flag else ''
-            top500 = (TOP_500 + " ") if p.top500 else ''
-            current_name = safe_backticks(current_name)
-            field_head = truncate(country_flag + top500 + current_name, FIELD_NAME_LIMIT) or '(Unnamed Player)'
-
-            notable_results = get_first_placements_text(r, p)
-            won_low_ink = r.placement_is_winning_low_ink(r.best_low_ink_placement(p))
-            grouped_player_sources = r.get_grouped_sources_text(p)
-
-            # Single player detailed view --
-            # If there's just the one matched player, move the extras to another field.
-            if r.matched_players_len == 1 and r.matched_teams_len < 14:
-                field_body = f'{other_names}'
-                builder.add_field(name=field_head,
-                                  value=truncate(field_body, FIELD_VALUE_LIMIT) or "(No other names)",
-                                  inline=False)
-
-                fcs_len = len(p.friend_codes)
-                builder.add_field(name='FCs:',
-                                  value=f"{fcs_len} known friend code{'' if fcs_len == 1 else 's'}",
-                                  inline=False)
-
-                if current_team:
-                    builder.add_field(name='Current team:',
-                                      value=truncate(current_team, FIELD_VALUE_LIMIT),
-                                      inline=False)
-
-                if old_teams:
-                    append_unrolled_list(builder, "Old teams", old_teams)
-
-                if twitch:
-                    append_unrolled_list(builder, "Twitch", twitch)
-
-                if twitter:
-                    append_unrolled_list(builder, "Twitter", twitter)
-
-                if battlefy:
-                    append_unrolled_list(builder, "Battlefy", battlefy)
-
-                if discord:
-                    append_unrolled_list(builder, "Discord", discord)
-
-                if len(notable_results) or p.plus_membership:
-                    notable_results_lines: List[str] = []
-
-                    p.plus_membership.sort(key=lambda pm: pm.date, reverse=True)
-                    for plus in p.plus_membership:
-                        notable_results_lines.append(f"{PLUS}{plus.level} member ({plus.date:%Y-%m})")
-
-                    if won_low_ink:
-                        notable_results_lines.append(f"{LOW_INK} Low Ink Winner")
-
-                    for win in notable_results:
-                        notable_results_lines.append(f"{TROPHY} Won {win}")
-
-                    append_unrolled_list(builder, "Notable Wins", notable_results_lines)
-
-                if len(p.weapons):
-                    append_unrolled_list(builder, "Weapons", p.weapons, separator=', ')
-
-                if not p.skill.is_default:
-                    clout_message = p.skill.message
-                    builder.add_field(name='Clout:',
-                                      value=clout_message,
-                                      inline=False)
-
-                append_unrolled_list(builder, "Sources", grouped_player_sources)
-
-            # Multiple players summary view --
-            else:
-                emoji_num = add_to_reacts_dict(reacts, p)
-                additional_info = (
-                    f"\n More info: React {emoji_num}\n"
-                    if emoji_num
-                    else f"\n More info: {COMMAND_PREFIX}full {p.guid}\n")
-
-                notable_results_str = ''
-                if len(notable_results) or p.plus_membership:
-                    if p.plus_membership:
-                        plus = p.latest_plus_membership
-                        notable_results_str += f"{PLUS} {plus.date:%Y-%m} +{plus.level} member\n"
-                    if won_low_ink:
-                        notable_results_str += f"{LOW_INK} Low Ink Winner\n"
-                    for win in notable_results:
-                        notable_results_str += f"{TROPHY} Won {win}\n"
-
-                fcs_str = (len(p.friend_codes).__str__() + " known friend codes\n" if len(p.friend_codes) > 1
-                           else "1 known friend code\n" if len(p.friend_codes) == 1
-                           else "")
-
-                old_teams_str = conditional_str(prefix="Old teams:\n", result="\n".join(old_teams), suffix="\n")
-                old_teams_str = close_backticks_if_unclosed(truncate(old_teams_str, 3 * FIELD_VALUE_LIMIT / 4))
-                socials_str = truncate(conditional_str(suffix="\n", result='\n'.join(twitch))
-                                       + conditional_str(suffix="\n", result='\n'.join(twitter))
-                                       + conditional_str(suffix="\n", result='\n'.join(battlefy))
-                                       + conditional_str(suffix="\n", result='\n'.join(discord)), FIELD_VALUE_LIMIT)
-                if socials_str:
-                    socials_str += "\n"
-
-                field_body = (f'{other_names}{current_team}{old_teams_str}{fcs_str}'
-                              f'{socials_str}'
-                              f'{notable_results_str}') or "(Nothing else to say)"
-                sources_field: str = "Sources:\n" + "\n".join(grouped_player_sources)
-                field_body += sources_field
-
-                if len(field_body) + len(additional_info) < FIELD_VALUE_LIMIT:
-                    pass
-                else:
-                    field_body = truncate(field_body, (FIELD_VALUE_LIMIT - 4) - len(additional_info))
-                    field_body = close_backticks_if_unclosed(field_body)
-                field_body += additional_info
-
-                builder.add_field(name=field_head, value=field_body, inline=False)
-                await asyncio.sleep(0.001)  # 1ms yield
+            try:
+                await add_matched_player(builder, reacts, r, p)
+            except Exception as e:
+                builder.add_field(name='(Error Player)', value=e.__str__(), inline=False)
+                logging.exception(exc_info=e, msg=f"<@!97288493029416960> " + traceback.format_exc())  # @Slate in logging channel
 
     if r.has_matched_teams:
         for i in range(0, MAX_RESULTS):
@@ -1019,116 +853,11 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
                 break
 
             t = r.matched_teams[i]
-
-            # Transform names by adding a backslash to any backslashes.
-            grouped_team_sources = r.get_grouped_sources_text(t)
-            players = r.matched_players_for_teams.get(t.guid.__str__(), [])
-            players_in_team: List[Player] = []
-            players_ever_in_team: List[Player] = []
-            player_strings = []
-            player_strings_detailed = []
-            for player_tuple in players:
-                p = player_tuple[0]
-                in_team = player_tuple[1]
-                name = f'{safe_backticks(truncate(p.name.value, 48))}'
-                aka = conditional_str(prefix="_ᴬᴷᴬ_ ", result=', '.join([safe_backticks(truncate(alt.value, 20)) for alt in p.names[1:10]]))
-                and_more = len(p.names[11:])
-                player_strings.append(name)
-                player_strings_detailed.append(f'{"_(Latest)_" if in_team else "_(Ex)_"} {name} {aka}{f" +{and_more} other names…" if and_more else ""}')
-                players_ever_in_team.append(p)
-                if in_team:
-                    players_in_team.append(p)
-
-            div_phrase = best_team_player_div_string(t, players, r.known_teams)
-            if div_phrase:
-                div_phrase += '\n'
-
-            # Single team detailed view --
-            # If there's just the one matched team, move the sources to the next field.
-            if r.matched_teams_len == 1:
-                # Add in emoji reacts
-                for j, p_str in enumerate(player_strings_detailed):
-                    emoji_num = add_to_reacts_dict(reacts, players_ever_in_team[j])
-                    if emoji_num:
-                        player_strings_detailed[j] = emoji_num + " " + p_str
-
-                tags_str = "Tags: " + ", ".join([safe_backticks(tag.value) for tag in t.clan_tags]) + "\n" if len(t.clan_tags) else ""
-                num_players_str = f"{len(players)} players"
-                info = f'{div_phrase}{tags_str}{num_players_str}' or '.'
-                builder.add_field(name=truncate(t.__str__(), FIELD_NAME_LIMIT, "") or "Unnamed Team",
-                                  value=truncate(info, FIELD_VALUE_LIMIT),
-                                  inline=False)
-
-                # Show the team's alt names, if any
-                if len(t.names) > 1:
-                    builder.add_field(name='Other names:',
-                                      value=", ".join([safe_backticks(name.value) for name in t.names]),
-                                      inline=False)
-
-                # Iterate through the team's players up to a maximum of 10 fields
-                for j in range(0, 10):
-                    batch = 5
-                    start_index = j * batch
-                    end_index = (j+1) * batch
-                    splice = player_strings_detailed[start_index:end_index]
-                    if splice:
-                        builder.add_field(name=f'Players ({j+1}):',
-                                          value="\n".join(splice),
-                                          inline=False)
-                    else:
-                        break
-
-                player_skills = [player.skill for player in players_in_team]
-                (min_clout, min_conf), (max_clout, max_conf) = Skill.team_clout(player_skills)
-
-                if min_conf > 1:  # 1%
-                    if min_clout == max_clout:
-                        clout_message = f"I rate the current team's clout at {min_clout} ({min_conf}% sure)"
-                    else:
-                        clout_message = f"I rate the current team's clout between {min_clout} ({min_conf}% sure) " \
-                                        f"and {max_clout} ({max_conf}% sure)"
-
-                    builder.add_field(name='Clout:',
-                                      value=clout_message,
-                                      inline=False)
-
-                player_skills = [(player, player.skill.clout) for player in players_in_team]
-                if player_skills:
-                    best_player = max(player_skills, key=itemgetter(1))[0]
-                    if not best_player.skill.is_default:
-                        builder.add_field(name='Best player in the team by clout:',
-                                          value=truncate(best_player.name.value, 500) + ": " + best_player.skill.message,
-                                          inline=False)
-
-                builder.add_field(name='Slapp Id:',
-                                  value=t.guid.__str__(),
-                                  inline=False)
-
-                append_unrolled_list(builder, "Sources", grouped_team_sources)
-
-            # Multiple teams summary view --
-            else:
-                emoji_num = add_to_reacts_dict(reacts, t)
-                additional_info = (
-                    f"\n React {emoji_num} for more\n"
-                    if emoji_num
-                    else f"\n More info: {COMMAND_PREFIX}full {t.guid}\n")
-
-                field_body = f'{div_phrase}Players:\n{", ".join(player_strings)}\n' or "(Nothing else to say)"
-                sources_field: str = "Sources:\n" + "\n".join(grouped_team_sources)
-                field_body += sources_field
-
-                if len(field_body) + len(additional_info) < FIELD_VALUE_LIMIT:
-                    field_body += additional_info
-                else:
-                    field_body = truncate(field_body, (FIELD_VALUE_LIMIT - 4) - len(additional_info))
-                    field_body = close_backticks_if_unclosed(field_body)
-                    field_body += additional_info
-
-                builder.add_field(name=truncate(t.__str__(), FIELD_NAME_LIMIT, "") or "Unnamed Team",
-                                  value=truncate(field_body, FIELD_VALUE_LIMIT),
-                                  inline=False)
-                await asyncio.sleep(0.001)  # 1ms yield
+            try:
+                await add_matched_team(builder, reacts, r, t)
+            except Exception as e:
+                builder.add_field(name='(Error Team)', value=e.__str__(), inline=False)
+                logging.exception(exc_info=e, msg=f"<@!97288493029416960> " + traceback.format_exc())  # @Slate in logging channel
 
     builder.set_footer(
         text=get_random_footer_phrase() + (
@@ -1137,6 +866,282 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
         icon_url="https://media.discordapp.net/attachments/471361750986522647/758104388824072253/icon.png")
     await asyncio.sleep(0.001)  # 1ms yield
     return ProcessedSlappObject(builder, embed_colour, reacts)
+
+
+async def add_matched_team(builder: Embed, reacts: Dict[str, Union[Player, Team]], r: SlappResponseObject, t: Team):
+    # Transform names by adding a backslash to any backslashes.
+    grouped_team_sources = r.get_grouped_sources_text(t)
+    players = r.matched_players_for_teams.get(t.guid.__str__(), [])
+    players_in_team: List[Player] = []
+    players_ever_in_team: List[Player] = []
+    player_strings = []
+    player_strings_detailed = []
+    for player_tuple in players:
+        p = player_tuple[0]
+        in_team = player_tuple[1]
+        name = f'{safe_backticks(truncate(p.name.value, 48))}'
+        aka = conditional_str(prefix="_ᴬᴷᴬ_ ",
+                              result=', '.join([safe_backticks(truncate(alt.value, 20)) for alt in p.names[1:10]]))
+        and_more = len(p.names[11:])
+        player_strings.append(name)
+        player_strings_detailed.append(
+            f'{"_(Latest)_" if in_team else "_(Ex)_"} {name} {aka}{f" +{and_more} other names…" if and_more else ""}')
+        players_ever_in_team.append(p)
+        if in_team:
+            players_in_team.append(p)
+    div_phrase = best_team_player_div_string(t, players, r.known_teams)
+    if div_phrase:
+        div_phrase += '\n'
+    # Single team detailed view --
+    # If there's just the one matched team, move the sources to the next field.
+    if r.matched_teams_len == 1:
+        # Add in emoji reacts
+        for j, p_str in enumerate(player_strings_detailed):
+            emoji_num = add_to_reacts_dict(reacts, players_ever_in_team[j])
+            if emoji_num:
+                player_strings_detailed[j] = emoji_num + " " + p_str
+
+        tags_str = "Tags: " + ", ".join([safe_backticks(tag.value) for tag in t.clan_tags]) + "\n" if len(
+            t.clan_tags) else ""
+        num_players_str = f"{len(players)} players"
+        info = f'{div_phrase}{tags_str}{num_players_str}' or '.'
+        builder.add_field(name=truncate(t.__str__(), FIELD_NAME_LIMIT, "") or "Unnamed Team",
+                          value=truncate(info, FIELD_VALUE_LIMIT),
+                          inline=False)
+
+        # Show the team's alt names, if any
+        if len(t.names) > 1:
+            builder.add_field(name='Other names:',
+                              value=", ".join([safe_backticks(name.value) for name in t.names]),
+                              inline=False)
+
+        # Iterate through the team's players up to a maximum of 10 fields
+        for j in range(0, 10):
+            batch = 5
+            start_index = j * batch
+            end_index = (j + 1) * batch
+            splice = player_strings_detailed[start_index:end_index]
+            if splice:
+                builder.add_field(name=f'Players ({j + 1}):',
+                                  value="\n".join(splice),
+                                  inline=False)
+            else:
+                break
+
+        player_skills = [player.skill for player in players_in_team]
+        (min_clout, min_conf), (max_clout, max_conf) = Skill.team_clout(player_skills)
+
+        if min_conf > 1:  # 1%
+            if min_clout == max_clout:
+                clout_message = f"I rate the current team's clout at {min_clout} ({min_conf}% sure)"
+            else:
+                clout_message = f"I rate the current team's clout between {min_clout} ({min_conf}% sure) " \
+                                f"and {max_clout} ({max_conf}% sure)"
+
+            builder.add_field(name='Clout:',
+                              value=clout_message,
+                              inline=False)
+
+        player_skills = [(player, player.skill.clout) for player in players_in_team]
+        if player_skills:
+            best_player = max(player_skills, key=itemgetter(1))[0]
+            if not best_player.skill.is_default:
+                builder.add_field(name='Best player in the team by clout:',
+                                  value=truncate(best_player.name.value, 500) + ": " + best_player.skill.message,
+                                  inline=False)
+
+        builder.add_field(name='Slapp Id:',
+                          value=t.guid.__str__(),
+                          inline=False)
+
+        append_unrolled_list(builder, "Sources", grouped_team_sources)
+
+    # Multiple teams summary view --
+    else:
+        emoji_num = add_to_reacts_dict(reacts, t)
+        additional_info = (
+            f"\n React {emoji_num} for more\n"
+            if emoji_num
+            else f"\n More info: {COMMAND_PREFIX}full {t.guid}\n")
+
+        field_body = f'{div_phrase}Players:\n{", ".join(player_strings)}\n' or "(Nothing else to say)"
+        sources_field: str = "Sources:\n" + "\n".join(grouped_team_sources)
+        field_body += sources_field
+
+        if len(field_body) + len(additional_info) < FIELD_VALUE_LIMIT:
+            field_body += additional_info
+        else:
+            field_body = truncate(field_body, (FIELD_VALUE_LIMIT - 4) - len(additional_info))
+            field_body = close_backticks_if_unclosed(field_body)
+            field_body += additional_info
+
+        builder.add_field(name=truncate(t.__str__(), FIELD_NAME_LIMIT, "") or "Unnamed Team",
+                          value=truncate(field_body, FIELD_VALUE_LIMIT),
+                          inline=False)
+        await asyncio.sleep(0.001)  # 1ms yield
+
+
+async def add_matched_player(builder: Embed, reacts: Dict[str, Union[Player, Team]], r: SlappResponseObject, p: Player):
+    # Transform names by adding a backslash to any backslashes.
+    names = list({escape_characters(name.value) for name in p.names if name and name.value})
+    current_name = f"{names[0]}" if len(names) else "(Unnamed Player)"
+    resolved_teams = r.get_teams_for_player(p)
+    current_team = None
+    if r.is_single_player and resolved_teams:
+        emoji_num = add_to_reacts_dict(reacts, resolved_teams[0])
+        if emoji_num:
+            current_team = f'Plays for:\n{emoji_num} {wrap_in_backticks(resolved_teams[0].__str__())}\n'
+    if not current_team:
+        current_team = f'Plays for: {wrap_in_backticks(resolved_teams[0].__str__())}\n' if resolved_teams else ''
+    old_teams: List[str] = []
+    if len(resolved_teams) > 1:
+        resolved_old_teams = resolved_teams[1:]
+
+        # Add reacts if for a single player entry
+        if r.is_single_player:
+            for old_t in resolved_old_teams:
+                emoji_num = add_to_reacts_dict(reacts, old_t)
+                if emoji_num:
+                    old_teams.append(f"{emoji_num} {wrap_in_backticks(old_t.__str__())}")
+                else:
+                    old_teams.append(f"{wrap_in_backticks(old_t.__str__())}")
+        else:
+            old_teams.extend([wrap_in_backticks(old_t.__str__()) for old_t in resolved_old_teams])
+    if len(names) > 1:
+        other_names = conditional_str(prefix="_ᴬᴷᴬ_ ```",
+                                      result=join('\n', names[1:], post_func=lambda x: truncate(x, 256)),
+                                      suffix="```\n")
+        other_names = truncate(other_names, 1000, "…\n```\n")
+    else:
+        other_names = ''
+    battlefy: List[str] = [
+        f'{emojis.BATTLEFY} [{escape_characters(battlefy_profile.value)}]({battlefy_profile.uri})'
+        for battlefy_profile in p.battlefy.slugs
+    ]
+    discord: List[str] = []
+    for discord_profile in p.discord.ids:
+        did = escape_characters(discord_profile.value)
+        discord.append(f'{emojis.DISCORD} [{did}](https://discord.id/?prefill={did}) \n'
+                       f'🦑 [Sendou](https://sendou.ink/u/{did})')
+    twitch: List[str] = [
+        f'{emojis.TWITCH} [{escape_characters(twitch_profile.value)}]({twitch_profile.uri})'
+        for twitch_profile in p.twitch_profiles
+    ]
+    twitter: List[str] = [
+        f'{emojis.TWITTER} [{escape_characters(twitter_profile.value)}]({twitter_profile.uri})'
+        for twitter_profile in p.twitter_profiles
+    ]
+    country_flag = p.country_flag + ' ' if p.country_flag else ''
+    top500 = (TOP_500 + " ") if p.top500 else ''
+    current_name = safe_backticks(current_name)
+    field_head = truncate(country_flag + top500 + current_name, FIELD_NAME_LIMIT) or '(Unnamed Player)'
+    notable_results = get_first_placements_text(r, p)
+    won_low_ink = r.placement_is_winning_low_ink(r.best_low_ink_placement(p))
+    grouped_player_sources = r.get_grouped_sources_text(p)
+    # Single player detailed view --
+    # If there's just the one matched player, move the extras to another field.
+    if r.matched_players_len == 1 and r.matched_teams_len < 14:
+        field_body = f'{other_names}'
+        builder.add_field(name=field_head,
+                          value=truncate(field_body, FIELD_VALUE_LIMIT) or "(No other names)",
+                          inline=False)
+
+        fcs_len = len(p.friend_codes)
+        builder.add_field(name='FCs:',
+                          value=f"{fcs_len} known friend code{'' if fcs_len == 1 else 's'}",
+                          inline=False)
+
+        if current_team:
+            builder.add_field(name='Current team:',
+                              value=truncate(current_team, FIELD_VALUE_LIMIT),
+                              inline=False)
+
+        if old_teams:
+            append_unrolled_list(builder, "Old teams", old_teams)
+
+        if twitch:
+            append_unrolled_list(builder, "Twitch", twitch)
+
+        if twitter:
+            append_unrolled_list(builder, "Twitter", twitter)
+
+        if battlefy:
+            append_unrolled_list(builder, "Battlefy", battlefy)
+
+        if discord:
+            append_unrolled_list(builder, "Discord", discord)
+
+        if len(notable_results) or p.plus_membership:
+            notable_results_lines: List[str] = []
+
+            p.plus_membership.sort(key=lambda pm: pm.date, reverse=True)
+            for plus in p.plus_membership:
+                notable_results_lines.append(f"{PLUS}{plus.level} member ({plus.date:%Y-%m})")
+
+            if won_low_ink:
+                notable_results_lines.append(f"{LOW_INK} Low Ink Winner")
+
+            for win in notable_results:
+                notable_results_lines.append(f"{TROPHY} Won {win}")
+
+            append_unrolled_list(builder, "Notable Wins", notable_results_lines)
+
+        if len(p.weapons):
+            append_unrolled_list(builder, "Weapons", p.weapons, separator=', ')
+
+        if not p.skill.is_default:
+            clout_message = p.skill.message
+            builder.add_field(name='Clout:',
+                              value=clout_message,
+                              inline=False)
+
+        append_unrolled_list(builder, "Sources", grouped_player_sources)
+
+    # Multiple players summary view --
+    else:
+        emoji_num = add_to_reacts_dict(reacts, p)
+        additional_info = (
+            f"\n More info: React {emoji_num}\n"
+            if emoji_num
+            else f"\n More info: {COMMAND_PREFIX}full {p.guid}\n")
+
+        notable_results_str = ''
+        if len(notable_results) or p.plus_membership:
+            if p.plus_membership:
+                plus = p.latest_plus_membership
+                notable_results_str += f"{PLUS} {plus.date:%Y-%m} +{plus.level} member\n"
+            if won_low_ink:
+                notable_results_str += f"{LOW_INK} Low Ink Winner\n"
+            for win in notable_results:
+                notable_results_str += f"{TROPHY} Won {win}\n"
+
+        fcs_str = (len(p.friend_codes).__str__() + " known friend codes\n" if len(p.friend_codes) > 1
+                   else "1 known friend code\n" if len(p.friend_codes) == 1 else "")
+
+        old_teams_str = conditional_str(prefix="Old teams:\n", result="\n".join(old_teams), suffix="\n")
+        old_teams_str = close_backticks_if_unclosed(truncate(old_teams_str, 3 * FIELD_VALUE_LIMIT // 4))
+        socials_str = truncate(conditional_str(suffix="\n", result='\n'.join(twitch))
+                               + conditional_str(suffix="\n", result='\n'.join(twitter))
+                               + conditional_str(suffix="\n", result='\n'.join(battlefy))
+                               + conditional_str(suffix="\n", result='\n'.join(discord)), FIELD_VALUE_LIMIT)
+        if socials_str:
+            socials_str += "\n"
+
+        field_body = (f'{other_names}{current_team}{old_teams_str}{fcs_str}'
+                      f'{socials_str}'
+                      f'{notable_results_str}') or "(Nothing else to say)"
+        sources_field: str = "Sources:\n" + "\n".join(grouped_player_sources)
+        field_body += sources_field
+
+        if len(field_body) + len(additional_info) < FIELD_VALUE_LIMIT:
+            pass
+        else:
+            field_body = truncate(field_body, (FIELD_VALUE_LIMIT - 4) - len(additional_info))
+            field_body = close_backticks_if_unclosed(field_body)
+        field_body += additional_info
+
+        builder.add_field(name=field_head, value=field_body, inline=False)
+        await asyncio.sleep(0.001)  # 1ms yield
 
 
 def add_to_reacts_dict(reacts, player_or_team: Union[Player, Team]) -> Optional[str]:
