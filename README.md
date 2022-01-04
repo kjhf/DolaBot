@@ -27,6 +27,17 @@ LOGS_CHANNEL=870436255777837098
 # '~' by default or not specified.
 # Recommend using a different symbol for local testing.
 BOT_COMMAND_SYMBOL="+"
+# Path to the Google Sheets service account json definition
+# e.g. https://console.cloud.google.com/iam-admin/serviceaccounts/details/...
+MIT_GOOGLE_CREDS_FILE_PATH=".../SplatTag/dola-gsheet-access.json"
+# Discord id of the MIT Webhook channel
+MIT_WEBHOOK_CHANNEL=743901312718209154
+# Discord id of the MIT Webhook User
+MIT_WEBHOOK_USER_ID=927297819159711744
+# Google sheet id of the verification spreadsheet
+MIT_GOOGLE_SHEET_ID="1aaaaaaa_aaaaa"
+# Google sheet page index (0 is first sheet/page of the workbook)
+MIT_GOOGLE_SHEET_PAGE=0
 ```
 
 You must also set the relevant env values for [SlappPy](https://github.com/kjhf/SlappPy)

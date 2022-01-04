@@ -7,6 +7,7 @@ from discord.ext import commands
 from discord.ext.commands import Context
 
 from DolaBot.constants.bot_constants import COMMAND_PREFIX
+from DolaBot.helpers.discord_helper import get_members
 
 
 class ServerCommands(commands.Cog):
@@ -25,13 +26,12 @@ class ServerCommands(commands.Cog):
     async def members(self, ctx: Context, role: Optional[Role]):
         guild: Optional[Guild] = ctx.guild
         if guild:
-            await ctx.guild.fetch_roles()
-            ctx.guild.fetch_members(limit=None)
+            guild_members = await get_members(guild, role)
+            count = len(guild_members)
             if role:
-                count = sum(1 for user in guild.members if role in user.roles)
                 await ctx.send(f"{count}/{guild.member_count} users are in this server with the role {role.name}!")
             else:
-                await ctx.send(f"{guild.member_count} users are in the server!")
+                await ctx.send(f"{count} users are in the server!")
         else:
             await ctx.send("Hmm... we're not in a server! 😅")
 

@@ -8,15 +8,15 @@ from discord import RawReactionActionEvent
 from discord.ext import commands
 from discord.ext.commands import Bot, CommandNotFound, UserInputError, MissingRequiredArgument, Context
 
-from DolaBot.helpers.channel_logger import ChannelLogHandler
-
 from DolaBot.cogs.bot_util_commands import BotUtilCommands
 from DolaBot.cogs.meme_commands import MemeCommands
+from DolaBot.cogs.mit_commands import MITCommands
 from DolaBot.cogs.sendou_commands import SendouCommands
 from DolaBot.cogs.server_commands import ServerCommands
 from DolaBot.cogs.slapp_commands import SlappCommands
 from DolaBot.cogs.splatoon_commands import SplatoonCommands
 from DolaBot.constants.bot_constants import COMMAND_PREFIX
+from DolaBot.helpers.channel_logger import ChannelLogHandler
 
 
 class DolaBot(Bot):
@@ -34,6 +34,7 @@ class DolaBot(Bot):
         # Load Cogs
         self.try_add_cog(BotUtilCommands)
         self.try_add_cog(MemeCommands)
+        self.mit_commands: MITCommands = self.try_add_cog(MITCommands)
         self.try_add_cog(SendouCommands)
         self.try_add_cog(ServerCommands)
         self.slapp_commands: SlappCommands = self.try_add_cog(SlappCommands)
@@ -57,11 +58,25 @@ class DolaBot(Bot):
         else:
             raise error
 
-    async def on_message(self, message, **kwargs):
+    async def on_message(self, message: discord.Message, **kwargs):
         # We do not want the bot to reply to itself
         if message.author == self.user:
             return
-        await self.process_commands(message)
+
+        # self.process_commands ###
+        # If it's the MIT webhook, do stuff.
+        # else, don't respond to bot messages.
+        if message.author.bot and message.channel.id.__str__() == os.getenv("MIT_WEBHOOK_CHANNEL") \
+                and message.author.id.__str__() == os.getenv("MIT_WEBHOOK_USER_ID"):
+            message_to_send = await self.mit_commands.handle_webhook(message)
+            await message.channel.send(message_to_send)
+        elif message.author.bot:
+            return
+
+        # Process the message
+        ctx = await self.get_context(message)
+        await self.invoke(ctx)
+        ###
 
     async def on_ready(self):
         ChannelLogHandler(self)

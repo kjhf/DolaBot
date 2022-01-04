@@ -7,7 +7,7 @@ import traceback
 from collections import namedtuple, deque, OrderedDict
 from typing import Optional, List, Tuple, Dict, Deque, Union, Coroutine
 
-from DolaBot.helpers.discord_renderer_helper import safe_backticks, close_backticks_if_unclosed, wrap_in_backticks
+from DolaBot.helpers.discord_helper import safe_backticks, close_backticks_if_unclosed, wrap_in_backticks
 from DolaBot.helpers.supports_send import SupportsSend
 from battlefy_toolkit.downloaders.org_downloader import get_tournament_ids
 from slapp_py.core_classes.builtins import UNKNOWN_PLAYER, UnknownTeam

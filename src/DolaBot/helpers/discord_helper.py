@@ -1,3 +1,8 @@
+from typing import Optional, List
+
+from discord import Guild, Role, Member
+
+
 def wrap_in_backticks(string: str) -> str:
     """
     Wrap the string in backticks.
@@ -28,3 +33,11 @@ def close_backticks_if_unclosed(string: str) -> str:
     if (string.count('```') % 2) == 1:  # If we have an unclosed ```
         string += '```'
     return string
+
+
+async def get_members(guild: Guild, role: Optional[Role] = None) -> List[Member]:
+    await guild.fetch_roles()
+    guild.fetch_members(limit=None)
+    if role:
+        return [member for member in guild.members if role in member.roles]
+    return guild.members
