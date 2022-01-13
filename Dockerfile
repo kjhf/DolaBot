@@ -140,11 +140,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ApplicationData is /home/usr/
 COPY bin/net5.0 /usr/SplatTag/net5.0
 COPY bin/Snapshot-*.json /usr/src/SplatTag/
+COPY bin/dola-gsheet-access-*.json /usr/src/SplatTag/
 
 # Dola env (the rest are provided by the .env file)
 ENV SLAPP_CONSOLE_PATH=/usr/SplatTag/net5.0/SplatTagConsole.dll
 ENV SLAPP_DATA_FOLDER=/usr/src/SplatTag/
 ENV BOT_COMMAND_SYMBOL="~"
+ENV MIT_GOOGLE_CREDS_FILE_PATH=/usr/src/SplatTag/dola-gsheet-access.json
+ENV MIT_WEBHOOK_CHANNEL=743901312718209154
+ENV MIT_WEBHOOK_USER_ID=927297819159711744
+ENV MIT_GOOGLE_SHEET_ID="1bem0dY8iJ5WJC_keHeE-E8wnQ5nRjVg_hjpOJUc7Gt4"
+ENV MIT_GOOGLE_SHEET_PAGE=0
 
 WORKDIR /usr/src/
 CMD [ "python3", "-OO", "-m", "DolaBot.entry.main", "DolaBot/entry/main.py" ]

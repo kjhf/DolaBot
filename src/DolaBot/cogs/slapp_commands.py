@@ -446,6 +446,7 @@ class SlappCommands(commands.Cog):
 
     @staticmethod
     async def send_slapp(ctx: SupportsSend, success_message: str, response: SlappResponseObject):
+        """Process and send the Slapp message"""
         if success_message == "OK":
             try:
                 processed = await process_slapp(response)
@@ -669,6 +670,7 @@ class SlappCommands(commands.Cog):
             await ctx.send(message)
 
     async def receive_slapp_response(self, success_message: str, response: dict):
+        """slapp response function"""
         global slapp_started, slapp_caching_finished
 
         if success_message == "Caching task done.":
@@ -702,6 +704,7 @@ class SlappCommands(commands.Cog):
         else:
             send_tick = False
             ctx, description = slapp_ctx_queue.popleft()
+            logging.debug(f"Processing Slapp {response=}")
 
             if isinstance(ctx, Context):
                 await ctx.message.add_reaction(TYPING)
@@ -803,6 +806,7 @@ class SlappCommands(commands.Cog):
 
 
 async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
+    """slapp response function after building the SlappResponseObject"""
     has_players = r.has_matched_players
     has_players_pl = r.matched_players_len > 1
     has_teams = r.has_matched_teams
@@ -870,7 +874,7 @@ async def process_slapp(r: SlappResponseObject) -> ProcessedSlappObject:
 
 async def add_matched_team(builder: Embed, reacts: Dict[str, Union[Player, Team]], r: SlappResponseObject, t: Team):
     # Transform names by adding a backslash to any backslashes.
-    grouped_team_sources = r.get_grouped_sources_text(t)
+    grouped_team_sources = SlappResponseObject.get_grouped_sources_text(t)
     players = r.matched_players_for_teams.get(t.guid.__str__(), [])
     players_in_team: List[Player] = []
     players_ever_in_team: List[Player] = []
@@ -1036,8 +1040,10 @@ async def add_matched_player(builder: Embed, reacts: Dict[str, Union[Player, Tea
     current_name = safe_backticks(current_name)
     field_head = truncate(country_flag + top500 + current_name, FIELD_NAME_LIMIT) or '(Unnamed Player)'
     notable_results = get_first_placements_text(r, p)
-    won_low_ink = r.placement_is_winning_low_ink(r.best_low_ink_placement(p))
-    grouped_player_sources = r.get_grouped_sources_text(p)
+    best_low_ink = r.best_low_ink_placement(p)
+    winning_low_ink_pos = best_low_ink[0] if best_low_ink and (("Top Cut" in best_low_ink[1]) or ("Alpha" in best_low_ink[1])) else None
+
+    grouped_player_sources = SlappResponseObject.get_grouped_sources_text(p)
     # Single player detailed view --
     # If there's just the one matched player, move the extras to another field.
     if r.matched_players_len == 1 and r.matched_teams_len < 14:
@@ -1046,7 +1052,7 @@ async def add_matched_player(builder: Embed, reacts: Dict[str, Union[Player, Tea
                           value=truncate(field_body, FIELD_VALUE_LIMIT) or "(No other names)",
                           inline=False)
 
-        fcs_len = len(p.friend_codes)
+        fcs_len = p.fc_information.count
         builder.add_field(name='FCs:',
                           value=f"{fcs_len} known friend code{'' if fcs_len == 1 else 's'}",
                           inline=False)
@@ -1071,15 +1077,20 @@ async def add_matched_player(builder: Embed, reacts: Dict[str, Union[Player, Tea
         if discord:
             append_unrolled_list(builder, "Discord", discord)
 
-        if len(notable_results) or p.plus_membership:
+        if len(notable_results) or p.plus_membership or winning_low_ink_pos:
             notable_results_lines: List[str] = []
 
             p.plus_membership.sort(key=lambda pm: pm.date, reverse=True)
             for plus in p.plus_membership:
                 notable_results_lines.append(f"{PLUS}{plus.level} member ({plus.date:%Y-%m})")
 
-            if won_low_ink:
-                notable_results_lines.append(f"{LOW_INK} Low Ink Winner")
+            if winning_low_ink_pos:
+                if winning_low_ink_pos == 1:
+                    notable_results_lines.append(f"{LOW_INK} Low Ink Winner")
+                elif winning_low_ink_pos == 2:
+                    notable_results_lines.append(f"{LOW_INK} Low Ink 🥈 ")
+                elif winning_low_ink_pos == 3:
+                    notable_results_lines.append(f"{LOW_INK} Low Ink 🥉 ")
 
             for win in notable_results:
                 notable_results_lines.append(f"{TROPHY} Won {win}")
@@ -1106,17 +1117,23 @@ async def add_matched_player(builder: Embed, reacts: Dict[str, Union[Player, Tea
             else f"\n More info: {COMMAND_PREFIX}full {p.guid}\n")
 
         notable_results_str = ''
-        if len(notable_results) or p.plus_membership:
+        if len(notable_results) or p.plus_membership or winning_low_ink_pos:
             if p.plus_membership:
                 plus = p.latest_plus_membership
                 notable_results_str += f"{PLUS} {plus.date:%Y-%m} +{plus.level} member\n"
-            if won_low_ink:
-                notable_results_str += f"{LOW_INK} Low Ink Winner\n"
+            if winning_low_ink_pos:
+                if winning_low_ink_pos == 1:
+                    notable_results_str += f"{LOW_INK} Low Ink Winner\n"
+                elif winning_low_ink_pos == 2:
+                    notable_results_str += f"{LOW_INK} Low Ink 🥈 \n"
+                elif winning_low_ink_pos == 3:
+                    notable_results_str += f"{LOW_INK} Low Ink 🥉 \n"
+
             for win in notable_results:
                 notable_results_str += f"{TROPHY} Won {win}\n"
 
-        fcs_str = (len(p.friend_codes).__str__() + " known friend codes\n" if len(p.friend_codes) > 1
-                   else "1 known friend code\n" if len(p.friend_codes) == 1 else "")
+        fcs_str = (p.fc_information.count.__str__() + " known friend _codes\n" if p.fc_information.count > 1
+                   else "1 known friend code\n" if p.fc_information.count == 1 else "")
 
         old_teams_str = conditional_str(prefix="Old teams:\n", result="\n".join(old_teams), suffix="\n")
         old_teams_str = close_backticks_if_unclosed(truncate(old_teams_str, 3 * FIELD_VALUE_LIMIT // 4))
@@ -1178,7 +1195,7 @@ def best_team_player_div_string(
         else:
             assert False, f"Unknown Player object {p}"
 
-        for team_id in p.teams:
+        for team_id in p.teams_information.get_teams_unordered():
             player_team = known_teams.get(team_id.__str__(), None)
             if (player_team is not None) \
                     and not player_team.current_div.is_unknown \
@@ -1208,7 +1225,7 @@ def get_first_placements_text(r: SlappResponseObject, p: Player) -> List[str]:
     """
     return [
         f"{tup[1].name} in {tup[0].get_linked_name_display()}"
-        f"{conditional_str(prefix=' as ', result=(join(' or ', p.filter_to_source(tup[0].id).names[0:], post_func=lambda x: safe_backticks(truncate(x, 16)))))}"
+        f"{conditional_str(prefix=' as ', result=(join(' or ', p.filter_to_source(tup[0]).names[0:], post_func=lambda x: safe_backticks(truncate(x, 16)))))}"
         f"{conditional_str(prefix=' in team ', result=(join(' or ', [team.name for team in r.get_teams_from_ids(tup[2]) if team.guid != UnknownTeam.guid], post_func=lambda x: safe_backticks(truncate(x, 64)))))}"
         for tup in r.get_placements_by_place(p)
     ]

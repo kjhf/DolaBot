@@ -36,8 +36,13 @@ MIT_WEBHOOK_CHANNEL=743901312718209154
 MIT_WEBHOOK_USER_ID=927297819159711744
 # Google sheet id of the verification spreadsheet
 MIT_GOOGLE_SHEET_ID="1aaaaaaa_aaaaa"
-# Google sheet page index (0 is first sheet/page of the workbook)
-MIT_GOOGLE_SHEET_PAGE=0
+# Google sheet page index for cycle (0 is first sheet/page of the workbook)
+MIT_GOOGLE_SHEET_PAGE_INDEX=0
+# Google sheet page id for the friend codes
+MIT_FC_PAGE_ID=123456
+###
+# Remember additional values should be included in the Dockerfile ...
+###
 ```
 
 You must also set the relevant env values for [SlappPy](https://github.com/kjhf/SlappPy)

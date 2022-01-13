@@ -87,7 +87,7 @@ class DolaBot(Bot):
             logging.getLogger().setLevel(level="DEBUG")
             presence = "--=IN DEV=--"
         else:
-            presence = "with Slate"
+            presence = "in the cloud ⛅"
 
         if 'pydevd' in sys.modules or 'pdb' in sys.modules or '_pydev_bundle.pydev_log' in sys.modules:
             presence += ' (Debug Attached)'

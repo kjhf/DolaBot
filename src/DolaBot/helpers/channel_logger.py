@@ -6,6 +6,8 @@ from logging import StreamHandler
 
 from discord.ext.commands import Bot
 
+from DolaBot.helpers.embed_helper import MESSAGE_TEXT_LIMIT
+
 
 class ChannelLogHandler(StreamHandler):
     def __init__(self, bot: Bot):
@@ -24,4 +26,8 @@ class ChannelLogHandler(StreamHandler):
 
     def emit(self, record):
         msg = self.format(record)
+        while len(msg) > MESSAGE_TEXT_LIMIT:
+            truncated_send = msg[:MESSAGE_TEXT_LIMIT]
+            asyncio.create_task(self.log_channel.send(truncated_send))
+            msg = msg[MESSAGE_TEXT_LIMIT:]
         asyncio.create_task(self.log_channel.send(msg))
