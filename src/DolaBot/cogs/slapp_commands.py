@@ -82,7 +82,7 @@ async def handle_html(ctx: Optional[SupportsSend], description: str, response: O
             team_awards = []
             for r in module_html_list[team_name]:
                 if r.matched_players_len == 0:
-                    p = Player(names=[Name(value=r.query or UNKNOWN_PLAYER, sources=r.sources.keys())])
+                    p = Player(names=[Name(value=r.query or UNKNOWN_PLAYER, sources=r.sources)])
                     pass
                 elif r.matched_players_len > 1:
                     p = Player.soft_merge_from_multiple(r.matched_players)
@@ -549,10 +549,10 @@ class SlappCommands(commands.Cog):
                     team_awards = []
                     for r in module_autoseed_list[team_name]:
                         if r.matched_players_len == 0:
-                            p = Player(names=[Name(value=r.query or UNKNOWN_PLAYER, sources=r.sources.keys())])
+                            p = Player(names=[Name(value=r.query or UNKNOWN_PLAYER, sources=r.sources)])
                             pass
                         elif r.matched_players_len > 1:
-                            p = Player(names=[Name(value=r.query or UNKNOWN_PLAYER, sources=r.sources.keys())])
+                            p = Player(names=[Name(value=r.query or UNKNOWN_PLAYER, sources=r.sources)])
                             message += f"Too many matches for player {r.query} 😔 " \
                                        f"({r.matched_players_len=})\n"
                         else:
