@@ -5,9 +5,22 @@ import logging
 import re
 import traceback
 from collections import namedtuple, deque, OrderedDict
+from operator import itemgetter
 from typing import Optional, List, Tuple, Dict, Deque, Union, Coroutine
 
+from discord import Color, Embed, File, Message, RawReactionActionEvent, errors
+from discord.ext import commands
+from discord.ext.commands import Context, Bot
+
+from DolaBot.constants import emojis
+from DolaBot.constants.bot_constants import COMMAND_PREFIX
+from DolaBot.constants.emojis import TOP_500, TROPHY, TICK, TURTLE, RUNNING, LOW_INK, NUMBERS_KEY_CAPS, TYPING, CROSS, \
+    NUMBERS_KEY_CAPS_LEN, PLUS, SKULL
+from DolaBot.constants.footer_phrases import get_random_footer_phrase
 from DolaBot.helpers.discord_helper import safe_backticks, close_backticks_if_unclosed, wrap_in_backticks
+from DolaBot.helpers.embed_helper import to_embed, NUMBER_OF_FIELDS_LIMIT, FIELD_VALUE_LIMIT, FIELD_NAME_LIMIT, \
+    TOTAL_CHARACTER_LIMIT, append_unrolled_list
+from DolaBot.helpers.processed_slapp_object import ProcessedSlappObject
 from DolaBot.helpers.supports_send import SupportsSend
 from battlefy_toolkit.downloaders.org_downloader import get_tournament_ids
 from slapp_py.core_classes.builtins import UNKNOWN_PLAYER, UnknownTeam
@@ -16,28 +29,11 @@ from slapp_py.core_classes.name import Name
 from slapp_py.core_classes.player import Player
 from slapp_py.core_classes.skill import Skill
 from slapp_py.core_classes.team import Team
-
-from discord import Color, Embed, File, Message, RawReactionActionEvent, errors
-from discord.ext import commands
-from discord.ext.commands import Context, Bot
-
+from slapp_py.helpers.str_helper import join, truncate, escape_characters, conditional_str
 from slapp_py.misc.download_from_battlefy_result import download_from_battlefy
 from slapp_py.misc.models.battlefy_team import BattlefyTeam
 from slapp_py.slapp_runner.slapipes import MAX_RESULTS, SlapPipe
 from slapp_py.slapp_runner.slapp_response_object import SlappResponseObject
-
-from DolaBot.constants import emojis
-from DolaBot.constants.bot_constants import COMMAND_PREFIX
-from DolaBot.constants.emojis import TOP_500, TROPHY, TICK, TURTLE, RUNNING, LOW_INK, NUMBERS_KEY_CAPS, TYPING, CROSS, \
-    NUMBERS_KEY_CAPS_LEN, PLUS
-from DolaBot.constants.footer_phrases import get_random_footer_phrase
-from DolaBot.helpers.embed_helper import to_embed, NUMBER_OF_FIELDS_LIMIT, FIELD_VALUE_LIMIT, FIELD_NAME_LIMIT, \
-    TOTAL_CHARACTER_LIMIT, append_unrolled_list
-from DolaBot.helpers.processed_slapp_object import ProcessedSlappObject
-from slapp_py.helpers.str_helper import join, truncate, escape_characters, conditional_str
-
-from operator import itemgetter
-
 
 SlappQueueItem = namedtuple('SlappQueueItem', ('SupportsSend', 'str'))
 slapp_ctx_queue: Deque[SlappQueueItem] = deque()
@@ -210,8 +206,8 @@ class SlappCommands(commands.Cog):
 
     async def handle_reaction(self, payload: RawReactionActionEvent):
         channel = await self.bot.fetch_channel(payload.channel_id)
-        message = slapp_reacts_queue.get(payload.message_id, {})
-        response = message.get(payload.emoji.__str__())
+        message = slapp_reacts_queue.get(str(payload.message_id), {})
+        response = message.get(str(payload.emoji))
 
         handled = False
         if response:
@@ -227,7 +223,7 @@ class SlappCommands(commands.Cog):
                             f"but we dropped the payload emoji {payload.emoji=!r}, we're looking for [{message=!r}]")
 
         if handled:
-            slapp_reacts_queue[payload.message_id].pop(payload.emoji.__str__())
+            slapp_reacts_queue[str(payload.message_id)].pop(str(payload.emoji))
             message: Message = await channel.fetch_message(payload.message_id)
             try:
                 await message.clear_reaction(payload.emoji.__str__())
@@ -445,7 +441,7 @@ class SlappCommands(commands.Cog):
         # This comes back in the receive_slapp_response -> handle_predict
 
     @staticmethod
-    async def send_slapp(ctx: SupportsSend, success_message: str, response: SlappResponseObject):
+    async def process_send_slapp(ctx: SupportsSend, success_message: str, response: SlappResponseObject):
         """Process and send the Slapp message"""
         if success_message == "OK":
             try:
@@ -712,7 +708,7 @@ class SlappCommands(commands.Cog):
 
             if description.startswith('predict_'):
                 if success_message != "OK":
-                    await SlappCommands.send_slapp(
+                    await SlappCommands.process_send_slapp(
                         ctx=ctx,
                         success_message=success_message,
                         response=SlappResponseObject(response))
@@ -721,7 +717,7 @@ class SlappCommands(commands.Cog):
                 send_tick = True
             elif description.startswith('autoseed'):
                 if success_message != "OK":
-                    await SlappCommands.send_slapp(
+                    await SlappCommands.process_send_slapp(
                         ctx=ctx,
                         success_message=success_message,
                         response=SlappResponseObject(response))
@@ -741,7 +737,7 @@ class SlappCommands(commands.Cog):
                     send_tick = True
             elif description.startswith('html'):
                 if success_message != "OK":
-                    await SlappCommands.send_slapp(
+                    await SlappCommands.process_send_slapp(
                         ctx=ctx,
                         success_message=success_message,
                         response=SlappResponseObject(response))
@@ -761,11 +757,19 @@ class SlappCommands(commands.Cog):
                     send_tick = True
 
             else:
-                await SlappCommands.send_slapp(
-                    ctx=ctx,
-                    success_message=success_message,
-                    response=SlappResponseObject(response))
-                send_tick = True
+                try:
+                    response_object = SlappResponseObject(response)
+                except Exception as e:
+                    logging.exception(exc_info=e,
+                                      msg=f"<@!97288493029416960> " + traceback.format_exc())  # @Slate in logging channel
+                    if isinstance(ctx, Context):
+                        await ctx.message.add_reaction(SKULL)
+                else:
+                    await SlappCommands.process_send_slapp(
+                        ctx=ctx,
+                        success_message=success_message,
+                        response=response_object)
+                    send_tick = True
 
             if isinstance(ctx, Context) and send_tick:
                 await ctx.message.add_reaction(TICK)
@@ -1132,7 +1136,7 @@ async def add_matched_player(builder: Embed, reacts: Dict[str, Union[Player, Tea
             for win in notable_results:
                 notable_results_str += f"{TROPHY} Won {win}\n"
 
-        fcs_str = (p.fc_information.count.__str__() + " known friend _codes\n" if p.fc_information.count > 1
+        fcs_str = (p.fc_information.count.__str__() + " known friend codes\n" if p.fc_information.count > 1
                    else "1 known friend code\n" if p.fc_information.count == 1 else "")
 
         old_teams_str = conditional_str(prefix="Old teams:\n", result="\n".join(old_teams), suffix="\n")
@@ -1146,7 +1150,7 @@ async def add_matched_player(builder: Embed, reacts: Dict[str, Union[Player, Tea
 
         field_body = (f'{other_names}{current_team}{old_teams_str}{fcs_str}'
                       f'{socials_str}'
-                      f'{notable_results_str}') or "(Nothing else to say)"
+                      f'{notable_results_str}') or "(Nothing else to say)\n"
         sources_field: str = "Sources:\n" + "\n".join(grouped_player_sources)
         field_body += sources_field
 

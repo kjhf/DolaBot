@@ -191,7 +191,7 @@ class ServerCommands(commands.Cog):
             # If the user has colour roles already, remove it
             if user_colour_roles:
                 for role in user_colour_roles:
-                    await user.remove_roles(role, reason=f"Dola (Requested change by {user.id}")
+                    await user.remove_roles(role, reason=f"Dola (Requested change by {user.id})")
 
             # Remove roles that no longer have any users
             for role in user_colour_roles:

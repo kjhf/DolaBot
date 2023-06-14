@@ -1,5 +1,5 @@
-requests~=2.25.1
-discord~=1.0.1
+requests
+discord~=2.3.0
 Pillow
 battlefy-toolkit-slate>=1.2.1
 SlappPy-Slate==1.14.7
@@ -8,7 +8,7 @@ trueskill~=0.4.5
 python-dateutil~=2.8.1
 gspread~=5.1.1
 
-setuptools~=56.2.0
+setuptools
 psycopg2~=2.8.6
 smashggpy~=0.0.29
 beautifulsoup4~=4.9.3

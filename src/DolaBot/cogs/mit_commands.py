@@ -36,13 +36,13 @@ class MITCommands(commands.Cog):
         return result
 
     async def upload_discord_ids_to_sheet(self, message) -> str:
-        if self.connector.valid:
+        if self.connector.valid and self.connector.mit_cycle_sheet:
             cache_sheet = self.connector.mit_cycle_sheet.get_values()
             
             # Get the discord columns
             try:
-                discord_tag_index, discord_tag_col = self._find_col_from_cache(cache_sheet, re.compile(r"(Discord Tag).*"))
-                discord_id_index, discord_id_col = self._find_col_from_cache(cache_sheet, re.compile(r"(Discord Id).*"))
+                discord_tag_index, discord_tag_col = self._find_col_from_cache(cache_sheet, re.compile(r"(Discord Tag).*", re.I))
+                discord_id_index, discord_id_col = self._find_col_from_cache(cache_sheet, re.compile(r"(Discord Id).*", re.I))
                 logging.debug(f"{discord_tag_col=} {discord_id_col=}")
             except Exception as ex:
                 return f"Could not find the Discord tag/id column: {ex}. Columns loaded: {self.connector.mit_cycle_sheet.col_count}"
@@ -89,12 +89,12 @@ class MITCommands(commands.Cog):
             # Commit
             cells = [Cell(row=row_i + 1, col=discord_id_col, value=row_list[discord_id_index]) for row_i, row_list in enumerate(cache_sheet)]
             self.connector.mit_cycle_sheet.update_cells(cells)
-            return f"{tag_count} new found tags, {near_count} found by discrim and first char, and {failed_count} members could not be found. {skipped_count} skipped. For a total of {tag_count+near_count+failed_count+skipped_count}."
+            return f"{len(cells)} cells updated: {tag_count} new found tags, {near_count} found by discrim and first char, and {failed_count} members could not be found. {skipped_count} skipped. For a total of {tag_count+near_count+failed_count+skipped_count}."
         else:
             return f"Cannot connect to Google Sheets."
 
     async def upload_friend_codes_to_sheet(self) -> str:
-        if self.connector.valid:
+        if self.connector.valid and self.connector.friend_code_sheet:
             cache_sheet = self.connector.friend_code_sheet.get_values()
             new_entries = []
 
@@ -228,9 +228,14 @@ class GSheetConnector:
         except FileNotFoundError:
             logging.error("Google creds file not found, will not complete sheet requests.")
             self.mit_cycle_sheet = None
+            self.friend_code_sheet = None
         else:
             mit_workbook = self.service.open_by_key(os.getenv("MIT_GOOGLE_SHEET_ID"))
-            self.friend_code_sheet = mit_workbook.get_worksheet_by_id(int(os.getenv("MIT_FC_PAGE_ID")))
+            if os.getenv("MIT_FC_PAGE_ID"):
+                self.friend_code_sheet = mit_workbook.get_worksheet_by_id(int(os.getenv("MIT_FC_PAGE_ID")))
+            else:
+                logging.warning("MIT sheet was found but the MIT_FC_PAGE_ID was not specified.")
+                self.friend_code_sheet = None
             self.mit_cycle_sheet = mit_workbook.get_worksheet(int(os.getenv("MIT_GOOGLE_SHEET_PAGE_INDEX")))
             logging.debug("Loaded GSheetConnector")
 

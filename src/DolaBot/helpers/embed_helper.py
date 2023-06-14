@@ -43,12 +43,12 @@ def to_embed(
     elif image_url is not None:
         description = image_url
     else:
-        raise discord.InvalidArgument('Specify message or image_url')
+        raise discord.InvalidData('Specify message or image_url')
 
     return discord.Embed(
         description=truncate(description, DESCRIPTION_LIMIT),
         colour=colour if not isinstance(colour, (int, int, int)) else Color.from_rgb(colour[0], colour[1], colour[2]),
-        image_url=image_url,
+        url=image_url,
         title=truncate(title, TITLE_LIMIT)  # Embed titles limited to 256 characters.
     )
 
