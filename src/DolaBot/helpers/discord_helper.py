@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, Sequence
 
 from discord import Guild, Role, Member
 
@@ -18,7 +18,7 @@ def wrap_in_backticks(string: str) -> str:
 
 def safe_backticks(string: str) -> str:
     """
-    Wrap the string in backticks if and ony if it requires it.
+    Wrap the string in backticks if and only if it requires it.
     If the string contains an `, it is wrapped in ```.
     If the string contains an _ or *, or starts or ends with a space, it is wrapped in `.
     """
@@ -35,7 +35,7 @@ def close_backticks_if_unclosed(string: str) -> str:
     return string
 
 
-async def get_members(guild: Guild, role: Optional[Role] = None) -> List[Member]:
+async def get_members(guild: Guild, role: Optional[Role] = None) -> Sequence[Member]:
     await guild.fetch_roles()
     guild.fetch_members(limit=None)
     if role:

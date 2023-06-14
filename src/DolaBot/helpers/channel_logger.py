@@ -26,6 +26,11 @@ class ChannelLogHandler(StreamHandler):
 
     def emit(self, record):
         msg = self.format(record)
+        
+        # Don't emit rate limiting messages otherwise we'll be stuck!!
+        if "We are being rate limited" in msg:
+            return
+
         while len(msg) > MESSAGE_TEXT_LIMIT:
             truncated_send = msg[:MESSAGE_TEXT_LIMIT]
             asyncio.create_task(self.log_channel.send(truncated_send))

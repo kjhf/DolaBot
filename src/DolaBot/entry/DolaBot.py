@@ -24,26 +24,31 @@ class DolaBot(Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.members = True  # Subscribe to the privileged members intent for roles and reactions.
+        intents.message_content = True
+        intents.messages = True
         intents.presences = False
         intents.typing = False
         super().__init__(
             command_prefix=COMMAND_PREFIX,
             intents=intents
         )
+        self.mit_commands = None
+        self.slapp_commands = None
 
+    async def setup_hook(self):
         # Load Cogs
-        self.try_add_cog(BotUtilCommands)
-        self.try_add_cog(MemeCommands)
-        self.mit_commands: MITCommands = self.try_add_cog(MITCommands)
-        self.try_add_cog(SendouCommands)
-        self.try_add_cog(ServerCommands)
-        self.slapp_commands: SlappCommands = self.try_add_cog(SlappCommands)
-        self.try_add_cog(SplatoonCommands)
+        await self.try_add_cog(BotUtilCommands)
+        await self.try_add_cog(MemeCommands)
+        self.mit_commands: MITCommands = await self.try_add_cog(MITCommands)
+        await self.try_add_cog(SendouCommands)
+        await self.try_add_cog(ServerCommands)
+        self.slapp_commands: SlappCommands = await self.try_add_cog(SlappCommands)
+        await self.try_add_cog(SplatoonCommands)
 
-    def try_add_cog(self, cog: commands.cog):
+    async def try_add_cog(self, cog: commands.cog):
         try:
             new_cog = cog(self)
-            self.add_cog(new_cog)
+            await self.add_cog(new_cog)
             return new_cog
         except Exception as e:
             logging.error(f"Failed to load {cog=}: {e=}")
@@ -102,7 +107,14 @@ class DolaBot(Bot):
         loop = asyncio.get_event_loop()
         loop.run_until_complete(
             asyncio.gather(
-                self.slapp_commands.initialise_slapp(),
+                self.initialise_slapp(),
                 self.start(os.getenv("BOT_TOKEN"))
             )
         )
+
+    async def initialise_slapp(self):
+        while self.slapp_commands is None:
+            await asyncio.sleep(3)
+        assert isinstance(self.slapp_commands, SlappCommands)
+        logging.info("Beginning slapp init.")
+        await self.slapp_commands.initialise_slapp()
